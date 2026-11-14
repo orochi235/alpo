@@ -84,4 +84,4 @@ export function packageOf(source: string): string | undefined {
   return source.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
 }
 
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = () => new Date().toLocaleDateString('en-CA');

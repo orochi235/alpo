@@ -45,15 +45,21 @@ export function activeLinks(root: string): Active[] {
 const BUILD_QUIET_MS = 1500;
 
 /**
+ * Vite's `Plugin`, typed without naming vite: a tether linked from its checkout brings its own vite,
+ * and two vites' `Plugin` types are too deep for TypeScript to compare.
+ */
+export type TetherPlugin = { name: string; [hook: string]: any };
+
+/**
  * Serves each library this repository has linked (`tether link`) from its checkout's built output
  * instead of the version npm installed. Imports resolve from the checkout's root, so its own
  * workspace links answer them and every package's `exports` still apply.
  */
-export function tether(opts: { from?: string } = {}): Plugin {
+export function tether(opts: { from?: string } = {}): TetherPlugin {
   let active: Active[] = [];
   let root: string | undefined;
   let closeWatchers = () => {};
-  return {
+  const plugin: Plugin = {
     name: 'tether',
     enforce: 'pre',
     config(user) {
@@ -116,6 +122,7 @@ export function tether(opts: { from?: string } = {}): Plugin {
       return this.resolve(source, join(a.checkout, 'package.json'), { skipSelf: true });
     },
   };
+  return plugin as TetherPlugin;
 }
 
 export default tether;
