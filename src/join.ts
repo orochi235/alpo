@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { expandHome, type LibConfig, LOCAL, readConfig, readLocal, type Via, writeConfig } from './config.ts';
 import { register, unregister } from './home.ts';
 import { git } from './sh.ts';
-import { depsOf, manifests, packagesIn } from './workspaces.ts';
+import { depsOf, manifests } from './workspaces.ts';
 
-/** `@scope/*` when every package the checkout supplies shares one scope; otherwise their names. */
+/** `@scope/*` when every package the checkout publishes shares one scope; otherwise their names. */
 export function defaultPackages(checkout: string): string[] {
-  const names = [...packagesIn(checkout).keys()];
+  const names = manifests(checkout).flatMap((m) => (m.json.name && !m.json.private ? [m.json.name] : []));
   const scopes = new Set(names.map((n) => (n.startsWith('@') ? n.split('/')[0] : '')));
   const [scope] = scopes;
   return scopes.size === 1 && scope ? [`${scope}/*`] : names.sort();

@@ -52,6 +52,7 @@ const BUILD_QUIET_MS = 1500;
 export function tether(opts: { from?: string } = {}): Plugin {
   let active: Active[] = [];
   let root: string | undefined;
+  let closeWatchers = () => {};
   return {
     name: 'tether',
     enforce: 'pre',
@@ -99,9 +100,13 @@ export function tether(opts: { from?: string } = {}): Plugin {
           }),
         );
       }
-      server.httpServer?.once('close', () => {
+      closeWatchers = () => {
         for (const w of watchers) w.close();
-      });
+      };
+      server.httpServer?.once('close', closeWatchers);
+    },
+    closeBundle() {
+      closeWatchers();
     },
     resolveId(source) {
       const name = packageOf(source);
