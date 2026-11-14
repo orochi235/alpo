@@ -44,7 +44,7 @@ const pad = (rows: string[][]) => {
 
 function pinText(s: Status): string {
   const specs = [...new Set(s.pins.map((p) => p.spec))];
-  return specs.length === 1 ? specs[0] : specs.length ? `${specs.length} pins` : '-';
+  return specs.join(', ') || '-';
 }
 
 function stateText(s: Status): string {
