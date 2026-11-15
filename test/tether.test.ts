@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { findRoot, matches, packageOf, readConfig, readLocal } from '../src/config.ts';
@@ -93,6 +93,36 @@ test('a failed typecheck puts the package files back and keeps the link', async 
   await assert.rejects(bump(app, 'lib', '1.1.0', stubTools(['run typecheck --if-present'])), /typecheck failed/);
   assert.equal(read(web).dependencies['@lib/a'], 'file:../../../lib/packages/a');
   assert.ok(readLocal(app).links.lib);
+});
+
+test('bump on a file link leaves an unrelated manifest edit and the link exactly as they were', async () => {
+  const { app, web } = setup('file');
+  link(app, 'lib', {}, stubTools());
+  writeFileSync(web, readFileSync(web, 'utf8').replace('^2.0.0', '^2.1.0'));
+  const before = readFileSync(web, 'utf8');
+  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools()), Skip);
+  assert.equal(readFileSync(web, 'utf8'), before);
+  assert.ok(readLocal(app).links.lib);
+});
+
+test('a failed commit puts the package files back and keeps the link', async () => {
+  const { app, web } = setup('file');
+  link(app, 'lib', {}, stubTools());
+  const before = readFileSync(web, 'utf8');
+  put(app, { 'hooks/pre-commit': '#!/bin/sh\nexit 1\n' });
+  chmodSync(join(app, 'hooks/pre-commit'), 0o755);
+  git(app, 'config', 'core.hooksPath', join(app, 'hooks'));
+  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools()), /commit failed/);
+  assert.equal(readFileSync(web, 'utf8'), before);
+  assert.ok(readLocal(app).links.lib);
+});
+
+test('a failed install while linking still records what to put back', () => {
+  const { app, web } = setup('file');
+  assert.throws(() => link(app, 'lib', {}, stubTools(['install'])), /npm install failed/);
+  assert.ok(readLocal(app).links.lib);
+  unlink(app, 'lib', stubTools());
+  assert.equal(read(web).dependencies['@lib/a'], '1.0.0');
 });
 
 test('a release covers a link once its tag contains every needed commit', () => {

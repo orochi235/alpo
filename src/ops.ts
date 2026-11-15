@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import { join, relative } from 'node:path';
 import {
   type Config,
@@ -59,8 +60,12 @@ export function link(root: string, name: string, opts: { for?: string; needs?: s
       setSpec(m, dep, `file:${relative(m.dir, dir)}`);
       writeManifest(m);
     }
+    // Saved before installing, so a failed install still leaves `unlink` the original specs.
+    local.links[name] = entry;
+    writeLocal(root, local);
     const r = tools.npm(root, ['install']);
-    if (!r.ok) throw new Error(`npm install failed after linking:\n${r.stderr}`);
+    if (!r.ok) throw new Error(`npm install failed after linking; \`tether unlink ${name}\` puts the specs back:\n${r.stderr}`);
+    return entry;
   }
   local.links[name] = entry;
   writeLocal(root, local);
@@ -106,58 +111,80 @@ export async function bump(root: string, name: string, version?: string, tools =
   const lib = libOf(readConfig(root), name);
   const local = readLocal(root);
   const entry = local.links[name];
-  const files = [...new Set([...manifests(root).map((m) => m.path), 'package-lock.json'])].filter((f) =>
-    existsSync(join(root, f)),
-  );
+  const manifestPaths = manifests(root).map((m) => m.path);
+  const files = [...new Set([...manifestPaths, 'package-lock.json'])].filter((f) => existsSync(join(root, f)));
+  const linked = lib.via === 'file' && !!entry;
   // A `file` link has its manifests modified on purpose; anything else in them is someone's work in progress.
-  if (!(lib.via === 'file' && entry)) {
+  if (!linked) {
     const dirty = git(root, 'status', '--porcelain', '--', ...files).stdout;
     if (dirty) throw new Skip(`package files have uncommitted changes:\n${dirty}`);
   }
-  if (lib.via === 'file' && entry) restore(root, entry.saved);
 
-  const pins = pinsOf(root, lib);
-  const targets = new Map<string, string>();
-  for (const dep of new Set(pins.map((p) => p.name))) {
-    const to = version ?? (await latest(dep, true));
-    if (!to) throw new Error(`npm has no version of ${dep}`);
-    targets.set(dep, to);
-  }
-  const changed: BumpResult['changed'] = [];
-  for (const { m, name: dep, spec } of pins) {
-    const to = targets.get(dep)!;
-    if (spec === to) continue;
-    setSpec(m, dep, to);
-    writeManifest(m);
-    if (!changed.some((c) => c.name === dep)) changed.push({ name: dep, from: spec, to });
-  }
-
+  // The bytes as they stood, so a failure anywhere below restores exactly this, link included.
+  const snapshot = new Map<string, Buffer | null>(
+    [...manifestPaths, 'package-lock.json'].map((f) => [f, existsSync(join(root, f)) ? readFileSync(join(root, f)) : null]),
+  );
+  let installed = false;
   const putBack = () => {
-    git(root, 'checkout', '--', ...files);
-    tools.npm(root, ['install']);
+    for (const [f, bytes] of snapshot) {
+      if (bytes) writeFileSync(join(root, f), bytes);
+      else rmSync(join(root, f), { force: true });
+    }
+    if (installed) tools.npm(root, ['install']);
   };
-  if (changed.length) {
-    const steps: Array<[string, string[]]> = [
-      ['npm install', ['install']],
-      ['typecheck', ['run', 'typecheck', '--if-present']],
-    ];
-    for (const [label, args] of steps) {
-      const r = tools.npm(root, args);
-      if (!r.ok) {
-        putBack();
-        if (lib.via === 'file' && entry) link(root, name, { for: entry.for, needs: entry.needs }, tools);
-        throw new Error(`${label} failed after the bump; package files put back:\n${r.stderr || r.stdout}`);
+
+  try {
+    if (linked) {
+      restore(root, entry?.saved);
+      const edited = manifestPaths.filter((f) => {
+        const head = git(root, 'show', `HEAD:${f}`);
+        return head.ok && !isDeepStrictEqual(JSON.parse(head.stdout), JSON.parse(readFileSync(join(root, f), 'utf8')));
+      });
+      if (edited.length) throw new Skip(`package files have uncommitted changes beyond the link:\n${edited.join('\n')}`);
+    }
+
+    const pins = pinsOf(root, lib);
+    const targets = new Map<string, string>();
+    for (const dep of new Set(pins.map((p) => p.name))) {
+      const to = version ?? (await latest(dep, true));
+      if (!to) throw new Error(`npm has no version of ${dep}`);
+      targets.set(dep, to);
+    }
+    const changed: BumpResult['changed'] = [];
+    for (const { m, name: dep, spec } of pins) {
+      const to = targets.get(dep)!;
+      if (spec === to) continue;
+      setSpec(m, dep, to);
+      writeManifest(m);
+      if (!changed.some((c) => c.name === dep)) changed.push({ name: dep, from: spec, to });
+    }
+
+    if (changed.length) {
+      const steps: Array<[string, string[]]> = [
+        ['npm install', ['install']],
+        ['typecheck', ['run', 'typecheck', '--if-present']],
+      ];
+      for (const [label, args] of steps) {
+        installed ||= label === 'npm install';
+        const r = tools.npm(root, args);
+        if (!r.ok) throw new Error(`${label} failed after the bump; package files put back:\n${r.stderr || r.stdout}`);
       }
     }
-  }
-  delete local.links[name];
-  writeLocal(root, local);
-  if (!changed.length) return { changed };
 
-  const tracked = files.filter((f) => git(root, 'ls-files', '--error-unmatch', f).ok);
-  const commit = git(root, 'commit', '--quiet', '-m', bumpMessage(lib, changed), '--', ...tracked);
-  if (!commit.ok) throw new Error(`commit failed:\n${commit.stderr}`);
-  return { changed, commit: git(root, 'rev-parse', '--short', 'HEAD').stdout };
+    let commit: string | undefined;
+    if (changed.length) {
+      const tracked = files.filter((f) => git(root, 'ls-files', '--error-unmatch', f).ok);
+      const c = git(root, 'commit', '--quiet', '-m', bumpMessage(lib, changed), '--', ...tracked);
+      if (!c.ok) throw new Error(`commit failed; package files put back:\n${c.stderr}`);
+      commit = git(root, 'rev-parse', '--short', 'HEAD').stdout;
+    }
+    delete local.links[name];
+    writeLocal(root, local);
+    return commit ? { changed, commit } : { changed };
+  } catch (e) {
+    putBack();
+    throw e;
+  }
 }
 
 export function bumpMessage(lib: LibConfig, changed: BumpResult['changed']): string {
