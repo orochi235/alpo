@@ -64,7 +64,7 @@ export function link(root: string, name: string, opts: { for?: string; needs?: s
     local.links[name] = entry;
     writeLocal(root, local);
     const r = tools.npm(root, ['install']);
-    if (!r.ok) throw new Error(`npm install failed after linking; \`tether unlink ${name}\` puts the specs back:\n${r.stderr}`);
+    if (!r.ok) throw new Error(`npm install failed after linking; \`alpo unlink ${name}\` puts the specs back:\n${r.stderr}`);
     return entry;
   }
   local.links[name] = entry;

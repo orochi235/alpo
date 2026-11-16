@@ -22,7 +22,7 @@ export function unwiredViteConfigs(root: string): string[] {
     readdirSync(dir)
       .filter((f) => /^vite\.config\.[cm]?[jt]s$/.test(f))
       .map((f) => join(dir, f))
-      .filter((f) => !readFileSync(f, 'utf8').includes('@msb235/tether/vite')),
+      .filter((f) => !readFileSync(f, 'utf8').includes('@msb235/alpo/vite')),
   );
 }
 
@@ -51,12 +51,12 @@ export function joinLib(root: string, lib: string, opts: { repo?: string; packag
 }
 
 export function leaveLib(root: string, lib: string) {
-  if (readLocal(root).links[lib]) throw new Error(`${lib} is linked here: run \`tether unlink ${lib}\` first`);
+  if (readLocal(root).links[lib]) throw new Error(`${lib} is linked here: run \`alpo unlink ${lib}\` first`);
   const config = readConfig(root);
   delete config.libs[lib];
   if (Object.keys(config.libs).length) writeConfig(root, config);
   else {
-    git(root, 'rm', '--quiet', '--force', '.tether.json');
+    git(root, 'rm', '--quiet', '--force', '.alpo.json');
     unregister(root);
   }
 }

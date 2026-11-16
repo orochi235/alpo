@@ -1,6 +1,6 @@
-# tether
+# alpo
 
-When a project needs an unreleased change in one of your libraries, tether serves that library from its local
+When a project needs an unreleased change in one of your libraries, alpo serves that library from its local
 checkout, records which commits the project is waiting on, and moves the project's pins once a release contains
 them. It replaces the per-repo `WEASEL=` / `BLITS=` / `file:` arrangements, which each repo did its own way and
 none of which knew when to stop.
@@ -8,10 +8,10 @@ none of which knew when to stop.
 ## In a consumer
 
 ```sh
-tether join weasel                    # once: writes .tether.json, registers the repo
-tether link weasel --for "F2 Glass lens"   # serve ~/src/weasel; waits on its current HEAD
-tether unlink weasel                  # back to npm
-tether bump weasel [1.20.0]           # exact pins, npm install, typecheck, commit the package files
+alpo join weasel                    # once: writes .alpo.json, registers the repo
+alpo link weasel --for "F2 Glass lens"   # serve ~/src/weasel; waits on its current HEAD
+alpo unlink weasel                  # back to npm
+alpo bump weasel [1.20.0]           # exact pins, npm install, typecheck, commit the package files
 ```
 
 `join` picks `@scope/*` when every package the checkout publishes shares a scope, `~/src/<lib>` as the checkout,
@@ -20,10 +20,10 @@ and `vite` when the repo depends on vite (`file` otherwise); `--packages`, `--re
 
 | File | Tracked | Holds |
 |---|---|---|
-| `.tether.json` | yes | which libraries the repo takes: package globs, checkout, `via` |
-| `.tether.local.json` | no (`join` ignores it) | what this checkout is linked to now, why, and the commits it needs |
-| `~/.tether/registry.json` | — | every repo that has joined something |
-| `~/.tether/cache.json` | — | npm `latest` per package and each checkout's last tag fetch, an hour each; one entry per package |
+| `.alpo.json` | yes | which libraries the repo takes: package globs, checkout, `via` |
+| `.alpo.local.json` | no (`join` ignores it) | what this checkout is linked to now, why, and the commits it needs |
+| `~/.alpo/registry.json` | — | every repo that has joined something |
+| `~/.alpo/cache.json` | — | npm `latest` per package and each checkout's last tag fetch, an hour each; one entry per package |
 
 ### `via: vite`
 
@@ -33,12 +33,12 @@ out of prebundling, the checkout joins `server.fs.allow`, the page reloads when 
 server restarts itself when you link or unlink.
 
 ```ts
-import { tether } from '@msb235/tether/vite';
-export default defineConfig({ plugins: [tether()] });
+import { alpo } from '@msb235/alpo/vite';
+export default defineConfig({ plugins: [alpo()] });
 ```
 
 It serves the checkout's **built** `dist`, so a library change needs a library build first. For one run,
-`TETHER_WEASEL=npm` turns a link off and `TETHER_WEASEL=<path>` serves another checkout (a worktree, say).
+`ALPO_WEASEL=npm` turns a link off and `ALPO_WEASEL=<path>` serves another checkout (a worktree, say).
 
 ### `via: file`
 
@@ -49,9 +49,9 @@ in the working tree and must not be committed.
 ## After a release
 
 ```sh
-tether ls       # every registered repo: pin, link, and whether the latest release covers it
-tether sweep    # bump and unlink every repo whose link the latest release now covers
-tether check    # this repo only, one line per covered link: for a SessionStart hook
+alpo ls       # every registered repo: pin, link, and whether the latest release covers it
+alpo sweep    # bump and unlink every repo whose link the latest release now covers
+alpo check    # this repo only, one line per covered link: for a SessionStart hook
 ```
 
 A link is covered when npm's `latest` for its packages has a tag in the checkout (`<name>@<version>`,
@@ -63,4 +63,4 @@ and the lockfile, so other work in the tree is left alone.
 ## Developing
 
 `npm test` runs the suite on Node's own test runner; `npm run build` writes `dist`, which the CLI
-(`~/.local/bin/tether` links `dist/cli.js`) and the vite plugin both run from.
+(`~/.local/bin/alpo` links `dist/cli.js`) and the vite plugin both run from.

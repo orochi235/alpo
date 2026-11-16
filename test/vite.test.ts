@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { createServer } from 'vite';
 import { joinLib } from '../src/join.ts';
 import { link, unlink } from '../src/ops.ts';
-import { tether } from '../src/vite.ts';
+import { alpo } from '../src/vite.ts';
 import { library, put, repo, scratch, stubTools } from './helpers.ts';
 
 test('a linked library resolves from its checkout, and an unlinked one does not', async () => {
@@ -20,7 +20,7 @@ test('a linked library resolves from its checkout, and an unlinked one does not'
   joinLib(app, 'lib', { repo: lib });
 
   const resolve = async () => {
-    const server = await createServer({ root: app, configFile: false, logLevel: 'silent', plugins: [tether()] });
+    const server = await createServer({ root: app, configFile: false, logLevel: 'silent', plugins: [alpo()] });
     try {
       return {
         id: (await server.pluginContainer.resolveId('@lib/a'))?.id,
@@ -36,9 +36,9 @@ test('a linked library resolves from its checkout, and an unlinked one does not'
   assert.ok(linked.id?.startsWith(join(realpathSync(lib), 'node_modules/@lib/a/dist/index.js')), String(linked.id));
   assert.deepEqual([...linked.exclude].sort(), ['@lib/a', '@lib/b']);
 
-  process.env.TETHER_LIB = 'npm';
+  process.env.ALPO_LIB = 'npm';
   assert.deepEqual((await resolve()).exclude, []);
-  delete process.env.TETHER_LIB;
+  delete process.env.ALPO_LIB;
 
   unlink(app, 'lib', stubTools());
   const plain = await resolve();

@@ -13,7 +13,7 @@ export interface LibConfig {
   via: Via;
 }
 
-/** `.tether.json`, committed: which libraries this repository takes, and from where. */
+/** `.alpo.json`, committed: which libraries this repository takes, and from where. */
 export interface Config {
   libs: Record<string, LibConfig>;
 }
@@ -27,13 +27,13 @@ export interface Link {
   saved?: Record<string, Record<string, string>>;
 }
 
-/** `.tether.local.json`, untracked: what this checkout is linked to right now. */
+/** `.alpo.local.json`, untracked: what this checkout is linked to right now. */
 export interface Local {
   links: Record<string, Link>;
 }
 
-export const CONFIG = '.tether.json';
-export const LOCAL = '.tether.local.json';
+export const CONFIG = '.alpo.json';
+export const LOCAL = '.alpo.local.json';
 
 export const expandHome = (path: string): string => resolve(path.replace(/^~(?=\/|$)/, homedir()));
 
@@ -42,7 +42,7 @@ export const tildify = (path: string): string => {
   return path === home || path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 };
 
-/** The nearest directory at or above `from` holding a `.tether.json`. */
+/** The nearest directory at or above `from` holding a `.alpo.json`. */
 export function findRoot(from: string): string | undefined {
   for (let dir = resolve(from); ; dir = dirname(dir)) {
     if (existsSync(join(dir, CONFIG))) return dir;
@@ -68,7 +68,7 @@ export function writeLocal(root: string, local: Local) {
 
 export function libOf(config: Config, lib: string): LibConfig {
   const found = config.libs[lib];
-  if (!found) throw new Error(`this repository has not joined ${lib}: run \`tether join ${lib}\``);
+  if (!found) throw new Error(`this repository has not joined ${lib}: run \`alpo join ${lib}\``);
   return found;
 }
 

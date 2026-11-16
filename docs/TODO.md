@@ -1,7 +1,7 @@
 # TODO
 
-- **Publish `@msb235/tether` to npm.** Until then consumers take it as `file:../tether`, so a checkout without
-  `~/src/tether` beside it cannot install; segmento is the only one so far. After publishing, move segmento's
+- **Publish `@msb235/alpo` to npm.** Until then consumers take it as `file:../alpo`, so a checkout without
+  `~/src/alpo` beside it cannot install; segmento is the only one so far. After publishing, move segmento's
   dev dependency to the exact version.
 - **Sign up the other consumers** once it is published. Each has its own copy of the linking code today:
   iconfab, astv, fiddy and collego (`weasel.vite.ts`, all four drifted from segmento's), klieg

@@ -39,7 +39,7 @@ test('globs match within one path segment, and imports name their package', () =
 test('join writes the config, ignores the local file, and registers the repo', () => {
   const { app, lib } = setup('vite');
   assert.deepEqual(readConfig(app).libs.lib, { packages: ['@lib/*'], repo: lib, via: 'vite' });
-  assert.match(readFileSync(join(app, '.gitignore'), 'utf8'), /^\.tether\.local\.json$/m);
+  assert.match(readFileSync(join(app, '.gitignore'), 'utf8'), /^\.alpo\.local\.json$/m);
   assert.deepEqual(registered(), [app]);
   assert.equal(findRoot(join(app, 'apps/web')), app);
 });
@@ -51,7 +51,7 @@ test('a vite link records what it waits on and touches no manifest', () => {
   assert.deepEqual(readLocal(app).links.lib.needs, [head]);
   assert.equal(read(web).dependencies['@lib/a'], '1.0.0');
   assert.ok(unlink(app, 'lib', stubTools()));
-  assert.ok(!existsSync(join(app, '.tether.local.json')));
+  assert.ok(!existsSync(join(app, '.alpo.local.json')));
 });
 
 test('a file link points manifests at the checkout and unlinking puts them back', () => {
@@ -140,6 +140,6 @@ test('a release covers a link once its tag contains every needed commit', () => 
 test('leaving the last library removes the config and the registration', () => {
   const { app } = setup('vite');
   leaveLib(app, 'lib');
-  assert.ok(!existsSync(join(app, '.tether.json')));
+  assert.ok(!existsSync(join(app, '.alpo.json')));
   assert.deepEqual(registered(), []);
 });

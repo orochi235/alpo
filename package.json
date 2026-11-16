@@ -1,10 +1,10 @@
 {
-  "name": "@msb235/tether",
+  "name": "@msb235/alpo",
   "version": "0.1.0",
   "description": "Serve a library from its local checkout until a release carries what you need, then move the pin",
   "type": "module",
   "bin": {
-    "tether": "dist/cli.js"
+    "alpo": "dist/cli.js"
   },
   "exports": {
     ".": {

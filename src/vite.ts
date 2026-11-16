@@ -22,8 +22,8 @@ interface Active {
   reason?: string;
 }
 
-/** `TETHER_WEASEL=npm` turns a link off for one run; `TETHER_WEASEL=<path>` serves another checkout. */
-const envKey = (lib: string) => `TETHER_${lib.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+/** `ALPO_WEASEL=npm` turns a link off for one run; `ALPO_WEASEL=<path>` serves another checkout. */
+const envKey = (lib: string) => `ALPO_${lib.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
 
 export function activeLinks(root: string): Active[] {
   const config = readConfig(root);
@@ -35,7 +35,7 @@ export function activeLinks(root: string): Active[] {
     const link = local.links[lib];
     if (!env && !link) return [];
     const checkout = expandHome(env || cfg.repo);
-    if (!existsSync(checkout)) throw new Error(`tether: ${lib} is linked but ${tildify(checkout)} does not exist`);
+    if (!existsSync(checkout)) throw new Error(`alpo: ${lib} is linked but ${tildify(checkout)} does not exist`);
     const packages = new Map([...packagesIn(checkout)].filter(([name]) => matches(cfg.packages, name)));
     return [{ lib, checkout, packages, reason: link?.for }];
   });
@@ -45,22 +45,22 @@ export function activeLinks(root: string): Active[] {
 const BUILD_QUIET_MS = 1500;
 
 /**
- * Vite's `Plugin`, typed without naming vite: a tether linked from its checkout brings its own vite,
+ * Vite's `Plugin`, typed without naming vite: a alpo linked from its checkout brings its own vite,
  * and two vites' `Plugin` types are too deep for TypeScript to compare.
  */
-export type TetherPlugin = { name: string; [hook: string]: any };
+export type AlpoPlugin = { name: string; [hook: string]: any };
 
 /**
- * Serves each library this repository has linked (`tether link`) from its checkout's built output
+ * Serves each library this repository has linked (`alpo link`) from its checkout's built output
  * instead of the version npm installed. Imports resolve from the checkout's root, so its own
  * workspace links answer them and every package's `exports` still apply.
  */
-export function tether(opts: { from?: string } = {}): TetherPlugin {
+export function alpo(opts: { from?: string } = {}): AlpoPlugin {
   let active: Active[] = [];
   let root: string | undefined;
   let closeWatchers = () => {};
   const plugin: Plugin = {
-    name: 'tether',
+    name: 'alpo',
     enforce: 'pre',
     config(user) {
       root = findRoot(opts.from ?? user.root ?? process.cwd());
@@ -78,7 +78,7 @@ export function tether(opts: { from?: string } = {}): TetherPlugin {
     configResolved(config) {
       for (const a of active) {
         const why = a.reason ? ` (for "${a.reason}")` : '';
-        config.logger.info(`tether: serving ${a.lib} from ${tildify(a.checkout)}${why}`);
+        config.logger.info(`alpo: serving ${a.lib} from ${tildify(a.checkout)}${why}`);
       }
     },
     configureServer(server) {
@@ -122,7 +122,7 @@ export function tether(opts: { from?: string } = {}): TetherPlugin {
       return this.resolve(source, join(a.checkout, 'package.json'), { skipSelf: true });
     },
   };
-  return plugin as TetherPlugin;
+  return plugin as AlpoPlugin;
 }
 
-export default tether;
+export default alpo;

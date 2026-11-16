@@ -10,7 +10,7 @@ export interface Manifest {
   indent: string;
 }
 
-/** Fields whose specs tether reads and moves; peer ranges are the consumer's contract, not a pin. */
+/** Fields whose specs alpo reads and moves; peer ranges are the consumer's contract, not a pin. */
 export const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
 
 function readManifest(root: string, dir: string): Manifest | undefined {

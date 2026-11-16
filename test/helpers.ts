@@ -5,8 +5,8 @@ import type { Tools } from '../src/ops.ts';
 import { git } from '../src/sh.ts';
 
 export function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'tether-'));
-  process.env.TETHER_HOME = join(dir, '.tether');
+  const dir = mkdtempSync(join(tmpdir(), 'alpo-'));
+  process.env.ALPO_HOME = join(dir, '.alpo');
   return dir;
 }
 

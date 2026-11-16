@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CONFIG } from './config.ts';
 
-/** Tether's own state: the registry of signed-up repositories and a cache of npm lookups. */
-export const home = () => process.env.TETHER_HOME ?? join(homedir(), '.tether');
+/** Alpo's own state: the registry of signed-up repositories and a cache of npm lookups. */
+export const home = () => process.env.ALPO_HOME ?? join(homedir(), '.alpo');
 
 const file = (name: string) => join(home(), name);
 
@@ -21,7 +21,7 @@ function write(name: string, value: unknown) {
   writeFileSync(file(name), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** Every repository that has joined a library, dropping any whose `.tether.json` is gone. */
+/** Every repository that has joined a library, dropping any whose `.alpo.json` is gone. */
 export function registered(): string[] {
   const { repos } = read<{ repos: string[] }>('registry.json', { repos: [] });
   const live = repos.filter((r) => existsSync(join(r, CONFIG)));

@@ -6,16 +6,16 @@ import { registered } from './home.ts';
 import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
 import { bump, link, Skip, type Status, status, unlink } from './ops.ts';
 
-const USAGE = `tether — serve a library from its checkout until a release carries what you need
+const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
-  tether join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file]
-  tether leave <lib>
-  tether link <lib> [--for <reason>] [--needs <rev>]...
-  tether unlink <lib>
-  tether bump <lib> [<version>] [--all]
-  tether sweep [<lib>]      bump every signed-up repo whose link a release now covers
-  tether ls                 every signed-up repo: pins, links, and what the latest release covers
-  tether check              one line per covered link in this repo (for a SessionStart hook)`;
+  alpo join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file]
+  alpo leave <lib>
+  alpo link <lib> [--for <reason>] [--needs <rev>]...
+  alpo unlink <lib>
+  alpo bump <lib> [<version>] [--all]
+  alpo sweep [<lib>]      bump every signed-up repo whose link a release now covers
+  alpo ls                 every signed-up repo: pins, links, and what the latest release covers
+  alpo check              one line per covered link in this repo (for a SessionStart hook)`;
 
 const { values: flags, positionals } = parseArgs({
   allowPositionals: true,
@@ -33,7 +33,7 @@ const [command, lib, extra] = positionals;
 
 function here(): string {
   const root = findRoot(process.cwd());
-  if (!root) throw new Error('this repository has not joined anything: run `tether join <lib>`');
+  if (!root) throw new Error('this repository has not joined anything: run `alpo join <lib>`');
   return root;
 }
 
@@ -73,7 +73,7 @@ async function sweep(only?: string) {
 async function main() {
   if (flags.help || !command) return console.log(USAGE);
   const need = () => {
-    if (!lib) throw new Error(`usage: tether ${command} <lib>`);
+    if (!lib) throw new Error(`usage: alpo ${command} <lib>`);
     return lib;
   };
   switch (command) {
@@ -85,7 +85,7 @@ async function main() {
       console.log(`${basename(root)} joined ${lib}: ${entry.packages.join(', ')} from ${entry.repo}, via ${entry.via}`);
       if (entry.via === 'vite')
         for (const f of unwiredViteConfigs(root))
-          console.log(`  wire ${tildify(f)}: import { tether } from '@msb235/tether/vite'; plugins: [tether(), …]`);
+          console.log(`  wire ${tildify(f)}: import { alpo } from '@msb235/alpo/vite'; plugins: [alpo(), …]`);
       return;
     }
     case 'leave':
@@ -133,7 +133,7 @@ async function main() {
       for (const s of await status(root, { fetch: true }))
         if (s.link && s.covered)
           console.log(
-            `tether: ${basename(root)} is linked to ${s.lib}${s.link.for ? ` for "${s.link.for}"` : ''}, and ${s.pins.find((p) => p.latest)?.latest} carries what it needs: run \`tether bump ${s.lib}\``,
+            `alpo: ${basename(root)} is linked to ${s.lib}${s.link.for ? ` for "${s.link.for}"` : ''}, and ${s.pins.find((p) => p.latest)?.latest} carries what it needs: run \`alpo bump ${s.lib}\``,
           );
       return;
     }
@@ -143,6 +143,6 @@ async function main() {
 }
 
 main().catch((e: Error) => {
-  console.error(`tether: ${e.message}`);
+  console.error(`alpo: ${e.message}`);
   process.exit(1);
 });
