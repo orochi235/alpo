@@ -2,6 +2,26 @@
   "name": "@msb235/alpo",
   "version": "0.1.0",
   "description": "Serve a library from its local checkout until a release carries what you need, then move the pin",
+  "keywords": [
+    "npm",
+    "link",
+    "local",
+    "monorepo",
+    "vite",
+    "dependencies",
+    "dogfooding"
+  ],
+  "license": "MIT",
+  "author": "orochi235",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orochi235/alpo.git"
+  },
+  "homepage": "https://github.com/orochi235/alpo#readme",
+  "bugs": "https://github.com/orochi235/alpo/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "alpo": "dist/cli.js"
