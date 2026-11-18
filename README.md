@@ -5,6 +5,13 @@ checkout, records which commits the project is waiting on, and moves the project
 them. It replaces the per-repo `WEASEL=` / `BLITS=` / `file:` arrangements, which each repo did its own way and
 none of which knew when to stop.
 
+## Install
+
+```sh
+brew install orochi235/tap/alpo     # the CLI
+npm install -D @msb235/alpo          # in a repo that serves a linked library through vite
+```
+
 ## In a consumer
 
 ```sh
@@ -63,4 +70,4 @@ and the lockfile, so other work in the tree is left alone.
 ## Developing
 
 `npm test` runs the suite on Node's own test runner; `npm run build` writes `dist`, which the CLI
-(`~/.local/bin/alpo` links `dist/cli.js`) and the vite plugin both run from.
+(`node dist/cli.js` from a checkout) and the vite plugin both run from.
