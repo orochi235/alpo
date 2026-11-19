@@ -44,11 +44,12 @@ async function sweep(only?: string) {
   for (const root of registered()) {
     for (const s of await status(root, { fetch: true, fresh: true })) {
       if ((only && s.lib !== only) || !s.link || !s.covered) continue;
-      const version = latestOf(s);
       const label = `${basename(root)} ${s.lib}`;
       try {
-        const r = await bump(root, s.lib, version);
-        console.log(`${label}: bumped to ${version}${r.commit ? ` in ${r.commit}` : ''}, unlinked`);
+        // No version: each package moves to its own latest, which need not match its siblings'.
+        const r = await bump(root, s.lib);
+        const what = r.changed.map((c) => `${c.name} ${c.to}`).join(', ') || 'nothing to move';
+        console.log(`${label}: bumped ${what}${r.commit ? ` in ${r.commit}` : ''}, unlinked`);
       } catch (e) {
         console.log(`${label}: ${e instanceof Skip ? 'skipped' : 'failed'}: ${(e as Error).message}`);
       }

@@ -24,6 +24,22 @@ test('a library is behind only when some pin refuses latest', () => {
   const pin = (spec: string) => ({ manifest: 'package.json', name: '@lib/a', spec, latest: '1.4.0' });
   assert.equal(libState(status([pin('^1.4.0')])), 'current');
   assert.equal(libState(status([pin('^1.4.0'), pin('1.3.0')])), 'behind 1.4.0');
+  assert.equal(libState(status([{ ...pin('^1.0.0'), latest: undefined }])), 'latest unknown');
+  assert.equal(libState(status([])), '-');
+});
+
+test('a library behind on two packages names each one\'s own latest', () => {
+  const s = status([
+    { manifest: 'package.json', name: '@lib/a', spec: '^1.4.0', latest: '1.4.0' },
+    { manifest: 'package.json', name: '@lib/b', spec: '2.0.0', latest: '2.1.0' },
+  ]);
+  assert.equal(libState(s), 'behind 2.1.0');
+  s.pins[0].spec = '1.3.0';
+  assert.equal(libState(s), 'behind: @lib/a 1.4.0, @lib/b 2.1.0');
+});
+
+test('a joined library with no dependency on it still gets a row', () => {
+  assert.equal(depTable([status([])]).split('\n')[1], 'app   lib      -     -       -  -');
 });
 
 test('the dependency table gives each package in each manifest its own row', () => {

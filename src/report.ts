@@ -15,7 +15,15 @@ export function pinState(spec: string, latest: string | undefined): 'current' | 
 export function libState(s: Status): string {
   const latest = latestOf(s);
   if (s.link) return s.covered ? `covered by ${latest}` : `waiting (latest ${latest ?? '?'})`;
-  return s.pins.some((p) => pinState(p.spec, p.latest) === 'behind') ? `behind ${latest}` : 'current';
+  const behind = s.pins.filter((p) => pinState(p.spec, p.latest) === 'behind');
+  if (behind.length) {
+    const targets = new Set(behind.map((p) => p.latest));
+    return targets.size === 1
+      ? `behind ${[...targets][0]}`
+      : `behind: ${[...new Set(behind.map((p) => `${p.name} ${p.latest}`))].join(', ')}`;
+  }
+  if (s.pins.some((p) => pinState(p.spec, p.latest) === '?')) return 'latest unknown';
+  return s.pins.length ? 'current' : '-';
 }
 
 /** Columns padded to their widest cell; the columns named in `right` align right. */
@@ -42,14 +50,16 @@ export function libTable(all: Status[]): string {
 /** One row per dependency on a library, by manifest, so each package's own pin shows. */
 export function depTable(all: Status[]): string {
   const rows = all.flatMap((s) =>
-    s.pins.map((p) => [
-      basename(s.root),
-      p.name,
-      p.manifest,
-      p.spec,
-      p.latest ?? '?',
-      s.link ? 'linked' : pinState(p.spec, p.latest),
-    ]),
+    s.pins.length
+      ? s.pins.map((p) => [
+          basename(s.root),
+          p.name,
+          p.manifest,
+          p.spec,
+          p.latest ?? '?',
+          s.link ? (s.covered ? 'linked, covered' : 'linked, waiting') : pinState(p.spec, p.latest),
+        ])
+      : [[basename(s.root), s.lib, '-', '-', '-', '-']],
   );
   return table([['repo', 'package', 'in', 'pin', 'latest', 'state'], ...rows], [3, 4]);
 }
