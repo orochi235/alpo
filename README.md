@@ -15,17 +15,18 @@ npm install -D @msb235/alpo          # in a repo that serves a linked library th
 ## In a consumer
 
 ```sh
-alpo join weasel                    # once: writes .alpo.json, registers the repo
-alpo link weasel --for "F2 Glass lens"   # serve ~/src/weasel; waits on its current HEAD
-alpo unlink weasel                  # back to npm
-alpo bump weasel [1.20.0] [--exact]   # move pins, npm install, typecheck, commit the package files
+alpo join weasel                        # once: writes .alpo.json, registers the repo
+alpo link weasel --for "F2 Glass lens"  # serve ~/src/weasel; waits on its current HEAD
+alpo unlink weasel                      # back to npm
+alpo bump weasel [1.20.0] [--exact]     # move pins, npm install, typecheck, commit the package files
 ```
 
 `join` picks `@scope/*` when every package the checkout publishes shares a scope, `~/src/<lib>` as the checkout,
 and `vite` when the repo depends on vite (`file` otherwise); `--packages`, `--repo` and `--via` override each.
 `bump` leaves a range alone when it already admits the target and the lockfile installs it, which is exactly when
-`ls` calls it current; anything else, and everything under `--exact`, is pinned exactly. `link --needs <rev>` (repeatable) names the commits being waited on when `HEAD` is not the right answer. A relative
-`--repo` is taken from the repository root.
+`ls` calls it current; anything else, and everything under `--exact`, is pinned exactly. `link --needs <rev>`
+(repeatable) names the commits being waited on when `HEAD` is not the right answer. A relative `--repo` is taken
+from the repository root.
 
 | File | Tracked | Holds |
 |---|---|---|
