@@ -1,0 +1,3 @@
+enlist: 6
+plugin: node
+run: npm test
