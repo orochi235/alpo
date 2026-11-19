@@ -13,7 +13,8 @@ const USAGE = `alpo — serve a library from its checkout until a release carrie
   alpo leave <lib>
   alpo link <lib> [--for <reason>] [--needs <rev>]...
   alpo unlink <lib>
-  alpo bump <lib> [<version>] [--all]
+  alpo bump <lib> [<version>] [--all] [--exact]
+                          a range that admits the target, locked to it, is left alone; --exact pins it anyway
   alpo sweep [<lib>]      bump every signed-up repo whose link a release now covers
   alpo ls [--deps]        every signed-up repo: pins, links, and what the latest release covers;
                           --deps gives each package its own row, by manifest
@@ -29,6 +30,7 @@ const { values: flags, positionals } = parseArgs({
     needs: { type: 'string', multiple: true },
     all: { type: 'boolean' },
     deps: { type: 'boolean' },
+    exact: { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -91,7 +93,7 @@ async function main() {
         : [here()];
       for (const root of roots) {
         try {
-          const r = await bump(root, need(), extra);
+          const r = await bump(root, need(), { version: extra, exact: flags.exact });
           const what = r.changed.map((c) => `${c.name} ${c.from} → ${c.to}`).join(', ') || 'already current';
           console.log(`${basename(root)}: ${what}${r.commit ? ` (${r.commit})` : ''}`);
         } catch (e) {

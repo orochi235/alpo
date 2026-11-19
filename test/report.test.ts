@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Status } from '../src/ops.ts';
-import { depTable, libState, pinState } from '../src/report.ts';
+import { pinState, settled } from '../src/pins.ts';
+import { depTable, libState } from '../src/report.ts';
 
 const status = (pins: Status['pins'], link?: Status['link']): Status => ({
   root: '/src/app',
@@ -54,4 +55,12 @@ test('the dependency table gives each package in each manifest its own row', () 
     'app   @lib/a   package.json           ^1.18.1  1.19.1  current',
     'app   @lib/a   apps/web/package.json   1.18.1  1.19.1  behind',
   ]);
+});
+
+test('a range admitting the target is settled only once the lockfile installs it', () => {
+  assert.ok(settled('^1.18.1', '1.19.1', '1.19.1'));
+  assert.ok(settled('^1.18.1', '1.19.1'));
+  assert.ok(!settled('^1.18.1', '1.19.1', '1.18.1'));
+  assert.equal(pinState('^1.18.1', '1.19.1', '1.18.1'), 'behind');
+  assert.ok(!settled('~1.18.1', '1.19.1'));
 });

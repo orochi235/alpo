@@ -53,7 +53,7 @@ test('bump on a file link with no pin to move still reinstalls before dropping t
   const { app: root, web } = app(dir, 'file');
   link(root, 'lib', {}, stubTools());
   const tools = stubTools();
-  const r = await bump(root, 'lib', '1.0.0', tools);
+  const r = await bump(root, 'lib', { version: '1.0.0' }, tools);
   assert.deepEqual(r.changed, []);
   assert.deepEqual(tools.calls[0], ['install']);
   assert.equal(read(web).dependencies['@lib/a'], '1.0.0');
@@ -130,14 +130,14 @@ test('bump on a file link works when the alpo root is a subdirectory of its git 
   joinLib(root, 'lib', { repo: lib, via: 'file' });
   commitAll(mono, 'join');
   link(root, 'lib', {}, stubTools());
-  await bump(root, 'lib', '1.1.0', stubTools());
+  await bump(root, 'lib', { version: '1.1.0' }, stubTools());
   assert.equal(read(join(root, 'package.json')).dependencies['@lib/a'], '1.1.0');
 });
 
 test('a failed install while putting a bump back says so', async () => {
   const dir = scratch();
   const { app: root } = app(dir, 'vite');
-  await assert.rejects(bump(root, 'lib', '1.1.0', stubTools(['install'])), /while putting the package files back/);
+  await assert.rejects(bump(root, 'lib', { version: '1.1.0' }, stubTools(['install'])), /while putting the package files back/);
 });
 
 test('the vite plugin dedupes the peers of linked packages', () => {
@@ -186,4 +186,30 @@ test('a link waiting on a commit the trunk lacks says to re-link', async () => {
   const [s] = await status(root);
   assert.equal(s.covered, false);
   assert.deepEqual(s.offTrunk, [git(lib, 'rev-parse', 'feature').stdout]);
+});
+
+test('bump leaves a range that admits latest over a lock installing it, unless --exact', async () => {
+  const dir = scratch();
+  const lib = join(dir, 'lib');
+  library(lib);
+  const root = join(dir, 'app');
+  const lock = (v: string) => ({ lockfileVersion: 3, packages: { 'node_modules/@lib/a': { version: v } } });
+  repo(root, {
+    'package.json': { name: 'app', dependencies: { '@lib/a': '^1.0.0' } },
+    'package-lock.json': lock('1.2.0'),
+  });
+  joinLib(root, 'lib', { repo: lib, via: 'vite' });
+  commitAll(root, 'join');
+  const spec = () => read(join(root, 'package.json')).dependencies['@lib/a'];
+
+  assert.deepEqual((await bump(root, 'lib', { version: '1.2.0' }, stubTools())).changed, []);
+  assert.equal(spec(), '^1.0.0');
+  assert.deepEqual((await bump(root, 'lib', { version: '1.2.0', exact: true }, stubTools())).changed, [
+    { name: '@lib/a', from: '^1.0.0', to: '1.2.0' },
+  ]);
+
+  put(root, { 'package.json': { name: 'app', dependencies: { '@lib/a': '^1.0.0' } }, 'package-lock.json': lock('1.1.0') });
+  commitAll(root, 'stale lock');
+  await bump(root, 'lib', { version: '1.2.0' }, stubTools());
+  assert.equal(spec(), '1.2.0');
 });

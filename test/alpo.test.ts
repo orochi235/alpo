@@ -72,7 +72,7 @@ test('bump pins exactly, commits only the package files, and drops the link', as
   link(app, 'lib', {}, stubTools());
   put(app, { 'notes.txt': 'unrelated work in progress\n' });
   const tools = stubTools();
-  const r = await bump(app, 'lib', '1.1.0', tools);
+  const r = await bump(app, 'lib', { version: '1.1.0' }, tools);
   assert.deepEqual(read(web).dependencies, { '@lib/a': '1.1.0', '@lib/b': '1.1.0', other: '^2.0.0' });
   assert.deepEqual(tools.calls, [['install'], ['run', 'typecheck', '--if-present']]);
   assert.ok(r.commit);
@@ -84,13 +84,13 @@ test('bump pins exactly, commits only the package files, and drops the link', as
 test('bump leaves a repo alone when its package files have uncommitted changes', async () => {
   const { app, web } = setup('vite');
   writeFileSync(web, readFileSync(web, 'utf8').replace('^2.0.0', '^2.1.0'));
-  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools()), Skip);
+  await assert.rejects(bump(app, 'lib', { version: '1.1.0' }, stubTools()), Skip);
 });
 
 test('a failed typecheck puts the package files back and keeps the link', async () => {
   const { app, web } = setup('file');
   link(app, 'lib', {}, stubTools());
-  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools(['run typecheck --if-present'])), /typecheck failed/);
+  await assert.rejects(bump(app, 'lib', { version: '1.1.0' }, stubTools(['run typecheck --if-present'])), /typecheck failed/);
   assert.equal(read(web).dependencies['@lib/a'], 'file:../../../lib/packages/a');
   assert.ok(readLocal(app).links.lib);
 });
@@ -100,7 +100,7 @@ test('bump on a file link leaves an unrelated manifest edit and the link exactly
   link(app, 'lib', {}, stubTools());
   writeFileSync(web, readFileSync(web, 'utf8').replace('^2.0.0', '^2.1.0'));
   const before = readFileSync(web, 'utf8');
-  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools()), Skip);
+  await assert.rejects(bump(app, 'lib', { version: '1.1.0' }, stubTools()), Skip);
   assert.equal(readFileSync(web, 'utf8'), before);
   assert.ok(readLocal(app).links.lib);
 });
@@ -112,7 +112,7 @@ test('a failed commit puts the package files back and keeps the link', async () 
   put(app, { 'hooks/pre-commit': '#!/bin/sh\nexit 1\n' });
   chmodSync(join(app, 'hooks/pre-commit'), 0o755);
   git(app, 'config', 'core.hooksPath', join(app, 'hooks'));
-  await assert.rejects(bump(app, 'lib', '1.1.0', stubTools()), /commit failed/);
+  await assert.rejects(bump(app, 'lib', { version: '1.1.0' }, stubTools()), /commit failed/);
   assert.equal(readFileSync(web, 'utf8'), before);
   assert.ok(readLocal(app).links.lib);
 });

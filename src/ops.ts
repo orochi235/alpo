@@ -13,6 +13,7 @@ import {
   today,
   writeLocal,
 } from './config.ts';
+import { lockedOf, readLock, settled } from './pins.ts';
 import { contains, fetchTags, latest, offTrunk, tagFor } from './release.ts';
 import { git, type Result, run } from './sh.ts';
 import { depsOf, type Manifest, manifests, packagesIn, setSpec, writeManifest } from './workspaces.ts';
@@ -105,11 +106,18 @@ export interface BumpResult {
 }
 
 /**
- * Pins every package the library supplies to an exact version — `version` for all of them, or each
- * one's npm `latest` — installs, typechecks, and commits just the manifests and lockfile. A failure
- * puts those files back and leaves any link in place.
+ * Moves every package the library supplies to `version`, or each one's npm `latest`, installs, typechecks,
+ * and commits just the manifests and lockfile. A range that already admits the target, over a lockfile that
+ * installs it, is left alone unless `exact`, which pins every package exactly. A failure puts those files
+ * back and leaves any link in place.
  */
-export async function bump(root: string, name: string, version?: string, tools = realTools): Promise<BumpResult> {
+export async function bump(
+  root: string,
+  name: string,
+  opts: { version?: string; exact?: boolean } = {},
+  tools = realTools,
+): Promise<BumpResult> {
+  const { version, exact } = opts;
   const lib = libOf(readConfig(root), name);
   const local = readLocal(root);
   const entry = local.links[name];
@@ -148,6 +156,9 @@ export async function bump(root: string, name: string, version?: string, tools =
     }
 
     const pins = pinsOf(root, lib);
+    // A `file` link's working lockfile resolves to the checkout; the committed one says what npm installs.
+    const head = linked ? git(root, 'show', 'HEAD:./package-lock.json') : undefined;
+    const lock = head ? (head.ok ? JSON.parse(head.stdout) : undefined) : readLock(root);
     const targets = new Map<string, string>();
     for (const dep of new Set(pins.map((p) => p.name))) {
       const to = version ?? (await latest(dep, true, root));
@@ -157,7 +168,7 @@ export async function bump(root: string, name: string, version?: string, tools =
     const changed: BumpResult['changed'] = [];
     for (const { m, name: dep, spec } of pins) {
       const to = targets.get(dep)!;
-      if (spec === to) continue;
+      if (exact ? spec === to : settled(spec, to, lockedOf(lock, m.path, dep))) continue;
       setSpec(m, dep, to);
       writeManifest(m);
       if (!changed.some((c) => c.name === dep)) changed.push({ name: dep, from: spec, to });
@@ -204,7 +215,7 @@ export interface Status {
   lib: string;
   config: LibConfig;
   /** One per dependency on the library, by manifest: the same package pinned in two workspaces is two pins. */
-  pins: Array<{ manifest: string; name: string; spec: string; latest?: string }>;
+  pins: Array<{ manifest: string; name: string; spec: string; latest?: string; locked?: string }>;
   link?: Link;
   /** For a link: whether every package's latest release has a tag containing every commit it needs. */
   covered?: boolean;
@@ -224,7 +235,11 @@ export async function status(root: string, opts: { fetch?: boolean; fresh?: bool
       const found = pinsOf(root, cfg);
       const names = [...new Set(found.map((p) => p.name))];
       const versions = new Map(await Promise.all(names.map(async (n) => [n, await latest(n, opts.fresh, root)] as const)));
-      const pins = found.map(({ m, name, spec }) => ({ manifest: m.path, name, spec, latest: versions.get(name) }));
+      const lock = readLock(root);
+      const pins = found.map(({ m, name, spec }) => {
+        const locked = lockedOf(lock, m.path, name);
+        return { manifest: m.path, name, spec, latest: versions.get(name), ...(locked ? { locked } : {}) };
+      });
       const out: Status = { root, lib, config: cfg, pins, link: local.links[lib] };
       const checkout = checkoutOf(root, cfg);
       const released = names.flatMap((n) => {
