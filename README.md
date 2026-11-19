@@ -23,7 +23,8 @@ alpo bump weasel [1.20.0]           # exact pins, npm install, typecheck, commit
 
 `join` picks `@scope/*` when every package the checkout publishes shares a scope, `~/src/<lib>` as the checkout,
 and `vite` when the repo depends on vite (`file` otherwise); `--packages`, `--repo` and `--via` override each.
-`link --needs <rev>` (repeatable) names the commits being waited on when `HEAD` is not the right answer.
+`link --needs <rev>` (repeatable) names the commits being waited on when `HEAD` is not the right answer. A relative
+`--repo` is taken from the repository root.
 
 | File | Tracked | Holds |
 |---|---|---|
@@ -36,7 +37,7 @@ and `vite` when the repo depends on vite (`file` otherwise); `--packages`, `--re
 
 Nothing in the manifests changes. Load the plugin, and a linked library's imports resolve from its checkout's
 root, so the checkout's own workspace links answer them and each package's `exports` apply. Its packages are kept
-out of prebundling, the checkout joins `server.fs.allow`, the page reloads when a `dist` is rewritten, and the
+out of prebundling, their peer dependencies are deduped to the app's copy, the checkout joins `server.fs.allow`, the page reloads when a `dist` is rewritten, and the
 server restarts itself when you link or unlink.
 
 ```ts
@@ -64,7 +65,8 @@ alpo check       # this repo only, one line per covered link: for a SessionStart
 
 A link is covered when npm's `latest` for its packages has a tag in the checkout (`<name>@<version>`,
 `v<version>` or `<version>`; tags are fetched, since a release made in CI only leaves them on the remote) that
-contains every commit the link needs. `bump` refuses a repo whose package files have uncommitted changes, and a
+contains every commit the link needs, for every package the repo pins. `ls` warns when a needed commit is not on
+the remote's default branch: unpushed, or squashed away, in which case `link --needs` should name its replacement. `bump` refuses a repo whose package files have uncommitted changes, and a
 failed install or typecheck puts the package files back and keeps the link. Its commit holds only the manifests
 and the lockfile, so other work in the tree is left alone.
 

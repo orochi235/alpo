@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expandHome, type LibConfig, LOCAL, readConfig, readLocal, type Via, writeConfig } from './config.ts';
+import { CONFIG, expandHome, type LibConfig, LOCAL, readConfig, readLocal, type Via, writeConfig } from './config.ts';
 import { register, unregister } from './home.ts';
 import { git } from './sh.ts';
 import { depsOf, manifests } from './workspaces.ts';
@@ -35,7 +35,7 @@ function ignoreLocal(root: string) {
 
 export function joinLib(root: string, lib: string, opts: { repo?: string; packages?: string[]; via?: Via }): LibConfig {
   const repo = opts.repo ?? `~/src/${lib}`;
-  const checkout = expandHome(repo);
+  const checkout = expandHome(repo, root);
   if (!existsSync(join(checkout, 'package.json'))) throw new Error(`no package at ${repo}; pass --repo`);
   const entry: LibConfig = {
     packages: opts.packages?.length ? opts.packages : defaultPackages(checkout),
@@ -56,7 +56,8 @@ export function leaveLib(root: string, lib: string) {
   delete config.libs[lib];
   if (Object.keys(config.libs).length) writeConfig(root, config);
   else {
-    git(root, 'rm', '--quiet', '--force', '.alpo.json');
+    // `git rm` stages the deletion of a committed config; one never committed, or outside git, is just removed.
+    if (!git(root, 'rm', '--quiet', '--force', CONFIG).ok) rmSync(join(root, CONFIG), { force: true });
     unregister(root);
   }
 }

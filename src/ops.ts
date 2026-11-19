@@ -13,7 +13,7 @@ import {
   today,
   writeLocal,
 } from './config.ts';
-import { contains, fetchTags, latest, tagFor } from './release.ts';
+import { contains, fetchTags, latest, offTrunk, tagFor } from './release.ts';
 import { git, type Result, run } from './sh.ts';
 import { depsOf, type Manifest, manifests, packagesIn, setSpec, writeManifest } from './workspaces.ts';
 
@@ -26,7 +26,7 @@ export const realTools: Tools = { npm: (root, args) => run('npm', args, root) };
 
 export class Skip extends Error {}
 
-export const checkoutOf = (lib: LibConfig) => expandHome(lib.repo);
+export const checkoutOf = (root: string, lib: LibConfig) => expandHome(lib.repo, root);
 
 /** The consumer's dependencies this library supplies, by manifest. */
 export function pinsOf(root: string, lib: LibConfig): Array<{ m: Manifest; name: string; spec: string }> {
@@ -39,7 +39,7 @@ export function pinsOf(root: string, lib: LibConfig): Array<{ m: Manifest; name:
 
 export function link(root: string, name: string, opts: { for?: string; needs?: string[] }, tools = realTools): Link {
   const lib = libOf(readConfig(root), name);
-  const checkout = checkoutOf(lib);
+  const checkout = checkoutOf(root, lib);
   if (!existsSync(checkout)) throw new Error(`no checkout at ${lib.repo}`);
   const needs = (opts.needs?.length ? opts.needs : ['HEAD']).map((rev) => {
     const r = git(checkout, 'rev-parse', '--verify', `${rev}^{commit}`);
@@ -56,7 +56,9 @@ export function link(root: string, name: string, opts: { for?: string; needs?: s
     for (const { m, name: dep, spec } of pinsOf(root, lib)) {
       const dir = supplied.get(dep);
       if (!dir) continue;
-      if (!prior) (entry.saved[m.path] ??= {})[dep] = spec;
+      // Per dependency, so one added since the first link still gets its spec saved.
+      const saved = (entry.saved[m.path] ??= {});
+      if (!(dep in saved) && !spec.startsWith('file:')) saved[dep] = spec;
       setSpec(m, dep, `file:${relative(m.dir, dir)}`);
       writeManifest(m);
     }
@@ -130,14 +132,16 @@ export async function bump(root: string, name: string, version?: string, tools =
       if (bytes) writeFileSync(join(root, f), bytes);
       else rmSync(join(root, f), { force: true });
     }
-    if (installed) tools.npm(root, ['install']);
+    if (!installed) return '';
+    const r = tools.npm(root, ['install']);
+    return r.ok ? '' : `\nnpm install failed while putting the package files back; node_modules may not match them:\n${r.stderr}`;
   };
 
   try {
     if (linked) {
       restore(root, entry?.saved);
       const edited = manifestPaths.filter((f) => {
-        const head = git(root, 'show', `HEAD:${f}`);
+        const head = git(root, 'show', `HEAD:./${f}`);
         return head.ok && !isDeepStrictEqual(JSON.parse(head.stdout), JSON.parse(readFileSync(join(root, f), 'utf8')));
       });
       if (edited.length) throw new Skip(`package files have uncommitted changes beyond the link:\n${edited.join('\n')}`);
@@ -146,7 +150,7 @@ export async function bump(root: string, name: string, version?: string, tools =
     const pins = pinsOf(root, lib);
     const targets = new Map<string, string>();
     for (const dep of new Set(pins.map((p) => p.name))) {
-      const to = version ?? (await latest(dep, true));
+      const to = version ?? (await latest(dep, true, root));
       if (!to) throw new Error(`npm has no version of ${dep}`);
       targets.set(dep, to);
     }
@@ -159,7 +163,8 @@ export async function bump(root: string, name: string, version?: string, tools =
       if (!changed.some((c) => c.name === dep)) changed.push({ name: dep, from: spec, to });
     }
 
-    if (changed.length) {
+    // A `file` link's restored specs need an install even when no pin moved, or node_modules stays on the checkout.
+    if (changed.length || linked) {
       const steps: Array<[string, string[]]> = [
         ['npm install', ['install']],
         ['typecheck', ['run', 'typecheck', '--if-present']],
@@ -182,7 +187,8 @@ export async function bump(root: string, name: string, version?: string, tools =
     writeLocal(root, local);
     return commit ? { changed, commit } : { changed };
   } catch (e) {
-    putBack();
+    const trouble = putBack();
+    if (trouble && e instanceof Error) e.message += trouble;
     throw e;
   }
 }
@@ -200,10 +206,14 @@ export interface Status {
   /** One per dependency on the library, by manifest: the same package pinned in two workspaces is two pins. */
   pins: Array<{ manifest: string; name: string; spec: string; latest?: string }>;
   link?: Link;
-  /** The tag of the latest release, when the checkout has it. */
-  tag?: string;
-  /** For a link: whether the latest release contains every commit it needs. */
+  /** For a link: whether every package's latest release has a tag containing every commit it needs. */
   covered?: boolean;
+  /** Packages whose latest release left no tag in the checkout. */
+  untagged?: string[];
+  /** For a link: needed commits the remote's default branch lacks, so no release will contain them. */
+  offTrunk?: string[];
+  /** Why the checkout's tags could not be fetched, when they could not. */
+  fetchError?: string;
 }
 
 export async function status(root: string, opts: { fetch?: boolean; fresh?: boolean } = {}): Promise<Status[]> {
@@ -213,15 +223,30 @@ export async function status(root: string, opts: { fetch?: boolean; fresh?: bool
     Object.entries(config.libs).map(async ([lib, cfg]) => {
       const found = pinsOf(root, cfg);
       const names = [...new Set(found.map((p) => p.name))];
-      const versions = new Map(await Promise.all(names.map(async (n) => [n, await latest(n, opts.fresh)] as const)));
+      const versions = new Map(await Promise.all(names.map(async (n) => [n, await latest(n, opts.fresh, root)] as const)));
       const pins = found.map(({ m, name, spec }) => ({ manifest: m.path, name, spec, latest: versions.get(name) }));
       const out: Status = { root, lib, config: cfg, pins, link: local.links[lib] };
-      const lead = pins.find((p) => p.latest);
-      const checkout = checkoutOf(cfg);
-      if (lead?.latest && existsSync(checkout)) {
-        if (opts.fetch) fetchTags(checkout, opts.fresh);
-        out.tag = tagFor(checkout, lead.name, lead.latest);
-        if (out.link) out.covered = !!out.tag && contains(checkout, out.tag, out.link.needs);
+      const checkout = checkoutOf(root, cfg);
+      const released = names.flatMap((n) => {
+        const v = versions.get(n);
+        return v ? [{ name: n, version: v }] : [];
+      });
+      if (released.length && existsSync(checkout)) {
+        if (opts.fetch) {
+          const f = fetchTags(checkout, opts.fresh);
+          if (!f.ok) out.fetchError = f.error;
+        }
+        const tags = released.map((r) => ({ ...r, tag: tagFor(checkout, r.name, r.version) }));
+        const untagged = tags.filter((t) => !t.tag).map((t) => t.name);
+        if (untagged.length) out.untagged = untagged;
+        if (out.link) {
+          // Every package, not the first: each moves to its own latest on a bump, so each must carry the commits.
+          out.covered =
+            released.length === names.length &&
+            tags.every((t) => t.tag && contains(checkout, t.tag, out.link!.needs));
+          const off = offTrunk(checkout, out.link.needs);
+          if (off.length && !out.covered) out.offTrunk = off;
+        }
       }
       return out;
     }),

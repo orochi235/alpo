@@ -52,6 +52,7 @@ async function sweep(only?: string) {
         console.log(`${label}: bumped ${what}${r.commit ? ` in ${r.commit}` : ''}, unlinked`);
       } catch (e) {
         console.log(`${label}: ${e instanceof Skip ? 'skipped' : 'failed'}: ${(e as Error).message}`);
+        if (!(e instanceof Skip)) process.exitCode = 1;
       }
     }
   }

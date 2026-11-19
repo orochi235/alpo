@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, globSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join, relative } from 'node:path';
 
 export interface Manifest {
   /** The manifest's directory. */
@@ -21,14 +21,16 @@ function readManifest(root: string, dir: string): Manifest | undefined {
   return { dir, path: relative(root, file), json: JSON.parse(text), indent };
 }
 
-function expand(root: string, pattern: string): string[] {
-  const clean = pattern.replace(/\/$/, '');
-  if (!clean.endsWith('/*')) return [join(root, clean)];
-  const base = join(root, clean.slice(0, -2));
-  if (!existsSync(base)) return [];
-  return readdirSync(base, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => join(base, e.name));
+/** The directories npm's workspace patterns name: globs with `*` and `**`, less any `!` pattern. */
+function expand(root: string, patterns: string[]): string[] {
+  const clean = (p: string) => p.replace(/^!/, '').replace(/\/$/, '');
+  const glob = (ps: string[]) =>
+    ps.length ? globSync(ps.map(clean), { cwd: root, exclude: (p) => basename(String(p)) === 'node_modules' }) : [];
+  const drop = new Set(glob(patterns.filter((p) => p.startsWith('!'))));
+  return [...new Set(glob(patterns.filter((p) => !p.startsWith('!'))))]
+    .filter((dir) => !drop.has(dir))
+    .sort()
+    .map((dir) => join(root, dir));
 }
 
 /** The root manifest and every npm workspace's, in that order. */
@@ -37,7 +39,7 @@ export function manifests(root: string): Manifest[] {
   if (!top) return [];
   const ws = top.json.workspaces;
   const patterns = Array.isArray(ws) ? ws : ((ws as { packages?: string[] } | undefined)?.packages ?? []);
-  const rest = patterns.flatMap((p: string) => expand(root, p)).flatMap((dir) => readManifest(root, dir) ?? []);
+  const rest = expand(root, patterns).flatMap((dir) => readManifest(root, dir) ?? []);
   return [top, ...rest];
 }
 

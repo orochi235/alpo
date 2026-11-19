@@ -1,4 +1,4 @@
-import { existsSync, type FSWatcher, watch } from 'node:fs';
+import { existsSync, type FSWatcher, readFileSync, watch } from 'node:fs';
 import { join, relative } from 'node:path';
 import { type Plugin, searchForWorkspaceRoot } from 'vite';
 import {
@@ -34,11 +34,22 @@ export function activeLinks(root: string): Active[] {
     if (env === 'npm') return [];
     const link = local.links[lib];
     if (!env && !link) return [];
-    const checkout = expandHome(env || cfg.repo);
+    const checkout = env ? expandHome(env) : expandHome(cfg.repo, root);
     if (!existsSync(checkout)) throw new Error(`alpo: ${lib} is linked but ${tildify(checkout)} does not exist`);
     const packages = new Map([...packagesIn(checkout)].filter(([name]) => matches(cfg.packages, name)));
     return [{ lib, checkout, packages, reason: link?.for }];
   });
+}
+
+/** The peer dependencies of every linked package, which must resolve to the app's one copy. */
+export function peersOf(active: Active[]): string[] {
+  const peers = new Set<string>();
+  for (const a of active)
+    for (const dir of a.packages.values()) {
+      const json = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { peerDependencies?: object };
+      for (const name of Object.keys(json.peerDependencies ?? {})) if (!a.packages.has(name)) peers.add(name);
+    }
+  return [...peers].sort();
 }
 
 /** How long a checkout's `dist` files stay unwritten before its build is taken as done. */
@@ -71,6 +82,8 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
         // Prebundled, a checkout's build would be frozen at startup; the exclusion also changes the
         // config hash, so vite cannot reuse bundles it made from npm's copy.
         optimizeDeps: { exclude: active.flatMap((a) => [...a.packages.keys()]) },
+        // A checkout's `dist` would otherwise take its peers (react, say) from the checkout's own node_modules: a second copy.
+        resolve: { dedupe: peersOf(active) },
         // Setting `allow` at all drops vite's default, so the workspace root goes back in beside the checkouts.
         server: { fs: { allow: [searchForWorkspaceRoot(user.root ?? process.cwd()), ...active.map((a) => a.checkout)] } },
       };

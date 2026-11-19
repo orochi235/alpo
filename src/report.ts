@@ -14,7 +14,13 @@ export function pinState(spec: string, latest: string | undefined): 'current' | 
 
 export function libState(s: Status): string {
   const latest = latestOf(s);
-  if (s.link) return s.covered ? `covered by ${latest}` : `waiting (latest ${latest ?? '?'})`;
+  if (s.link) {
+    if (s.covered) return `covered by ${latest}`;
+    const notes = [`latest ${latest ?? '?'}`];
+    if (s.offTrunk?.length) notes.push(`${s.offTrunk.map((c) => c.slice(0, 9)).join(', ')} not on origin's trunk: unpushed, or squashed away`);
+    if (s.fetchError) notes.push('tag fetch failed');
+    return `waiting (${notes.join('; ')})`;
+  }
   const behind = s.pins.filter((p) => pinState(p.spec, p.latest) === 'behind');
   if (behind.length) {
     const targets = new Set(behind.map((p) => p.latest));

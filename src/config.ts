@@ -35,7 +35,9 @@ export interface Local {
 export const CONFIG = '.alpo.json';
 export const LOCAL = '.alpo.local.json';
 
-export const expandHome = (path: string): string => resolve(path.replace(/^~(?=\/|$)/, homedir()));
+/** `~/` is the home directory; any other relative path is taken from `base`, the repository root for a config's `repo`. */
+export const expandHome = (path: string, base = process.cwd()): string =>
+  resolve(base, path.replace(/^~(?=\/|$)/, homedir()));
 
 export const tildify = (path: string): string => {
   const home = homedir();
