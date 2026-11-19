@@ -197,7 +197,8 @@ export interface Status {
   root: string;
   lib: string;
   config: LibConfig;
-  pins: Array<{ name: string; spec: string; latest?: string }>;
+  /** One per dependency on the library, by manifest: the same package pinned in two workspaces is two pins. */
+  pins: Array<{ manifest: string; name: string; spec: string; latest?: string }>;
   link?: Link;
   /** The tag of the latest release, when the checkout has it. */
   tag?: string;
@@ -210,11 +211,10 @@ export async function status(root: string, opts: { fetch?: boolean; fresh?: bool
   const local = readLocal(root);
   return Promise.all(
     Object.entries(config.libs).map(async ([lib, cfg]) => {
-      const seen = new Map<string, string>();
-      for (const p of pinsOf(root, cfg)) if (!seen.has(p.name)) seen.set(p.name, p.spec);
-      const pins = await Promise.all(
-        [...seen].map(async ([name, spec]) => ({ name, spec, latest: await latest(name, opts.fresh) })),
-      );
+      const found = pinsOf(root, cfg);
+      const names = [...new Set(found.map((p) => p.name))];
+      const versions = new Map(await Promise.all(names.map(async (n) => [n, await latest(n, opts.fresh)] as const)));
+      const pins = found.map(({ m, name, spec }) => ({ manifest: m.path, name, spec, latest: versions.get(name) }));
       const out: Status = { root, lib, config: cfg, pins, link: local.links[lib] };
       const lead = pins.find((p) => p.latest);
       const checkout = checkoutOf(cfg);

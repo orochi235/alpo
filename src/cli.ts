@@ -4,7 +4,8 @@ import { parseArgs } from 'node:util';
 import { findRoot, readConfig, tildify, type Via } from './config.ts';
 import { registered } from './home.ts';
 import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
-import { bump, link, Skip, type Status, status, unlink } from './ops.ts';
+import { bump, link, Skip, status, unlink } from './ops.ts';
+import { depTable, latestOf, libTable } from './report.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
@@ -14,7 +15,8 @@ const USAGE = `alpo — serve a library from its checkout until a release carrie
   alpo unlink <lib>
   alpo bump <lib> [<version>] [--all]
   alpo sweep [<lib>]      bump every signed-up repo whose link a release now covers
-  alpo ls                 every signed-up repo: pins, links, and what the latest release covers
+  alpo ls [--deps]        every signed-up repo: pins, links, and what the latest release covers;
+                          --deps gives each package its own row, by manifest
   alpo check              one line per covered link in this repo (for a SessionStart hook)`;
 
 const { values: flags, positionals } = parseArgs({
@@ -26,6 +28,7 @@ const { values: flags, positionals } = parseArgs({
     for: { type: 'string' },
     needs: { type: 'string', multiple: true },
     all: { type: 'boolean' },
+    deps: { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -37,28 +40,11 @@ function here(): string {
   return root;
 }
 
-const pad = (rows: string[][]) => {
-  const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => r[i].length)));
-  return rows.map((r) => r.map((c, i) => c.padEnd(widths[i])).join('  ').trimEnd()).join('\n');
-};
-
-function pinText(s: Status): string {
-  const specs = [...new Set(s.pins.map((p) => p.spec))];
-  return specs.join(', ') || '-';
-}
-
-function stateText(s: Status): string {
-  const latestV = s.pins.find((p) => p.latest)?.latest;
-  if (s.link) return s.covered ? `covered by ${latestV}` : `waiting (latest ${latestV ?? '?'})`;
-  const behind = s.pins.some((p) => p.latest && p.spec !== p.latest);
-  return behind ? `behind ${latestV}` : 'current';
-}
-
 async function sweep(only?: string) {
   for (const root of registered()) {
     for (const s of await status(root, { fetch: true, fresh: true })) {
       if ((only && s.lib !== only) || !s.link || !s.covered) continue;
-      const version = s.pins.find((p) => p.latest)?.latest;
+      const version = latestOf(s);
       const label = `${basename(root)} ${s.lib}`;
       try {
         const r = await bump(root, s.lib, version);
@@ -117,15 +103,8 @@ async function main() {
       return sweep(lib);
     case 'ls': {
       const all = (await Promise.all(registered().map((r) => status(r, { fetch: true })))).flat();
-      const rows = all.map((s) => [
-        basename(s.root),
-        s.lib,
-        s.config.via,
-        pinText(s),
-        s.link ? `linked${s.link.for ? `: ${s.link.for}` : ''}` : '-',
-        stateText(s),
-      ]);
-      return console.log(rows.length ? pad([['repo', 'lib', 'via', 'pin', 'link', 'state'], ...rows]) : 'nothing has joined yet');
+      if (!all.length) return console.log('nothing has joined yet');
+      return console.log(flags.deps ? depTable(all) : libTable(all));
     }
     case 'check': {
       const root = findRoot(process.cwd());
@@ -133,7 +112,7 @@ async function main() {
       for (const s of await status(root, { fetch: true }))
         if (s.link && s.covered)
           console.log(
-            `alpo: ${basename(root)} is linked to ${s.lib}${s.link.for ? ` for "${s.link.for}"` : ''}, and ${s.pins.find((p) => p.latest)?.latest} carries what it needs: run \`alpo bump ${s.lib}\``,
+            `alpo: ${basename(root)} is linked to ${s.lib}${s.link.for ? ` for "${s.link.for}"` : ''}, and ${latestOf(s)} carries what it needs: run \`alpo bump ${s.lib}\``,
           );
       return;
     }

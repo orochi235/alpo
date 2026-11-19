@@ -57,6 +57,7 @@ in the working tree and must not be committed.
 
 ```sh
 alpo ls       # every registered repo: pin, link, and whether the latest release covers it
+alpo ls --deps   # the same, one row per package in each manifest
 alpo sweep    # bump and unlink every repo whose link the latest release now covers
 alpo check    # this repo only, one line per covered link: for a SessionStart hook
 ```
