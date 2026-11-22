@@ -11,6 +11,8 @@ export interface LibConfig {
   /** The library's checkout; `~/` is the home directory. */
   repo: string;
   via: Via;
+  /** `source` serves a vite link's `src` in place of the `dist` built from it; unset, `dist`. */
+  serve?: 'source';
 }
 
 /** `.alpo.json`, committed: which libraries this repository takes, and from where. */

@@ -49,7 +49,11 @@ import { alpo } from '@msb235/alpo/vite';
 export default defineConfig({ plugins: [alpo()] });
 ```
 
-It serves the checkout's **built** `dist`, so a library change needs a library build first. For one run,
+It serves the checkout's **built** `dist`, so a library change needs a library build first, and the page reloads
+once the build settles. `join --serve source` (`"serve": "source"` in `.alpo.json`) serves `src` instead: each
+import resolves through the package's `exports` as usual, then `dist/<path>.js` becomes `src/<path>.ts` (or
+`.tsx`, `.js`, …) where that file exists, so edits arrive by hot module replacement with no build. It suits a
+library whose build only compiles TypeScript; types still come from `dist`. For one run,
 `ALPO_WEASEL=npm` turns a link off and `ALPO_WEASEL=<path>` serves another checkout (a worktree, say).
 
 ### `via: file`

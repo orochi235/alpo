@@ -32,7 +32,11 @@ function ignoreLocal(root: string) {
   writeFileSync(path, `${text}${text && !text.endsWith('\n') ? '\n' : ''}${LOCAL}\n`);
 }
 
-export function joinLib(root: string, lib: string, opts: { repo?: string; packages?: string[]; via?: Via }): LibConfig {
+export function joinLib(
+  root: string,
+  lib: string,
+  opts: { repo?: string; packages?: string[]; via?: Via; serve?: 'source' },
+): LibConfig {
   const repo = opts.repo ?? `~/src/${lib}`;
   const checkout = expandHome(repo, root);
   if (!existsSync(join(checkout, 'package.json'))) throw new Error(`no package at ${repo}; pass --repo`);
@@ -40,7 +44,9 @@ export function joinLib(root: string, lib: string, opts: { repo?: string; packag
     packages: opts.packages?.length ? opts.packages : defaultPackages(checkout),
     repo,
     via: opts.via ?? (usesVite(root) ? 'vite' : 'file'),
+    ...(opts.serve ? { serve: opts.serve } : {}),
   };
+  if (entry.serve && entry.via !== 'vite') throw new Error('--serve source needs --via vite: a file link installs the package as built');
   const config = readConfig(root);
   config.libs[lib] = entry;
   writeConfig(root, config);

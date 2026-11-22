@@ -1,5 +1,5 @@
-import { existsSync, type FSWatcher, readFileSync, watch } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, type FSWatcher, readFileSync, realpathSync, watch } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { type Plugin, searchForWorkspaceRoot } from 'vite';
 import {
   CONFIG,
@@ -20,6 +20,8 @@ interface Active {
   /** The packages it supplies here, by name, with their directories. */
   packages: Map<string, string>;
   reason?: string;
+  /** When serving `src` in place of `dist`: the packages' directories, symlinks resolved as vite resolves ids. */
+  sourceDirs?: string[];
 }
 
 /** `ALPO_WEASEL=npm` turns a link off for one run; `ALPO_WEASEL=<path>` serves another checkout. */
@@ -37,7 +39,8 @@ export function activeLinks(root: string): Active[] {
     const checkout = env ? expandHome(env) : expandHome(cfg.repo, root);
     if (!existsSync(checkout)) throw new Error(`alpo: ${lib} is linked but ${tildify(checkout)} does not exist`);
     const packages = new Map([...packagesIn(checkout)].filter(([name]) => matches(cfg.packages, name)));
-    return [{ lib, checkout, packages, reason: link?.for }];
+    const sourceDirs = cfg.serve === 'source' ? [...packages.values()].map((d) => realpathSync(d)) : undefined;
+    return [{ lib, checkout, packages, reason: link?.for, ...(sourceDirs ? { sourceDirs } : {}) }];
   });
 }
 
@@ -55,6 +58,22 @@ export function peersOf(active: Active[]): string[] {
 /** The config and local files' contents, to tell a real change from a stray event. */
 const linkFiles = (root: string) =>
   [CONFIG, LOCAL].map((f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : '')).join('\0');
+
+const SOURCE_EXTS = ['.ts', '.tsx', '.mts', '.js', '.jsx', '.mjs'];
+
+/**
+ * The source file a package's built `dist/<path>.js` came from, at `src/<path>` under any usual extension,
+ * when the package mirrors `src` into `dist`; undefined when it does not.
+ */
+export function sourceOf(file: string, packageDirs: string[]): string | undefined {
+  for (const dir of packageDirs) {
+    const rel = relative(dir, file);
+    if (!rel.startsWith(`dist${sep}`)) continue;
+    const stem = join(dir, 'src', rel.slice('dist/'.length)).replace(/\.[cm]?js$/, '');
+    return SOURCE_EXTS.map((ext) => stem + ext).find((f) => existsSync(f));
+  }
+  return undefined;
+}
 
 /** How long a checkout's `dist` files stay unwritten before its build is taken as done. */
 const BUILD_QUIET_MS = 1500;
@@ -97,7 +116,7 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
     configResolved(config) {
       for (const a of active) {
         const why = a.reason ? ` (for "${a.reason}")` : '';
-        config.logger.info(`alpo: serving ${a.lib} from ${tildify(a.checkout)}${why}`);
+        config.logger.info(`alpo: serving ${a.lib}${a.sourceDirs ? "'s source" : ''} from ${tildify(a.checkout)}${why}`);
       }
     },
     configureServer(server) {
@@ -111,7 +130,8 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
           if ((name === LOCAL || name === CONFIG) && linkFiles(at) !== loaded) void server.restart();
         }),
       );
-      for (const a of active) {
+      // A source link needs no watch of its own: vite watches the source files it served.
+      for (const a of active.filter((x) => !x.sourceDirs)) {
         // Vite watches each file it served, which a rebuild deletes and writes anew, so the new file
         // goes unseen. A watch on each `dist` dies with the directory; one from the checkout outlives it.
         const dists = [...a.packages.values()].map((dir) => `${relative(a.checkout, dir) || '.'}/dist/`.replace(/^\.\//, ''));
@@ -135,12 +155,16 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
     closeBundle() {
       closeWatchers();
     },
-    resolveId(source) {
+    async resolveId(source) {
       const name = packageOf(source);
       if (!name) return null;
       const a = active.find((x) => x.packages.has(name));
       if (!a) return null;
-      return this.resolve(source, join(a.checkout, 'package.json'), { skipSelf: true });
+      const built = await this.resolve(source, join(a.checkout, 'package.json'), { skipSelf: true });
+      if (!a.sourceDirs || !built) return built;
+      const [file, query = ''] = built.id.split('?');
+      const src = sourceOf(file, a.sourceDirs);
+      return src ? { ...built, id: query ? `${src}?${query}` : src } : built;
     },
   };
   return plugin as AlpoPlugin;

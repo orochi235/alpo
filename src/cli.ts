@@ -12,7 +12,8 @@ import { WIRING, wireVite } from './wire.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
-  alpo join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file]
+  alpo join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file] [--serve source]
+                          --serve source: a vite link serves the checkout's src, not its dist
   alpo leave <lib>
   alpo link <lib> [--for <reason>] [--needs <rev>]...
   alpo unlink <lib>
@@ -24,28 +25,31 @@ const USAGE = `alpo — serve a library from its checkout until a release carrie
   alpo check              one line per covered link in this repo (for a SessionStart hook)
   alpo --version`;
 
-let parsed;
-try {
-  parsed = parseArgs({
-  allowPositionals: true,
-  options: {
-    repo: { type: 'string' },
-    packages: { type: 'string', multiple: true },
-    via: { type: 'string' },
-    for: { type: 'string' },
-    needs: { type: 'string', multiple: true },
-    all: { type: 'boolean' },
-    deps: { type: 'boolean' },
-    exact: { type: 'boolean' },
-    help: { type: 'boolean', short: 'h' },
-    version: { type: 'boolean', short: 'v' },
-  },
-});
-} catch (e) {
-  console.error(`alpo: ${(e as Error).message}\n\n${USAGE}`);
-  process.exit(1);
+function parse() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        repo: { type: 'string' },
+        packages: { type: 'string', multiple: true },
+        via: { type: 'string' },
+        serve: { type: 'string' },
+        for: { type: 'string' },
+        needs: { type: 'string', multiple: true },
+        all: { type: 'boolean' },
+        deps: { type: 'boolean' },
+        exact: { type: 'boolean' },
+        help: { type: 'boolean', short: 'h' },
+        version: { type: 'boolean', short: 'v' },
+      },
+    });
+  } catch (e) {
+    console.error(`alpo: ${(e as Error).message}\n\n${USAGE}`);
+    process.exit(1);
+  }
 }
-const { values: flags, positionals } = parsed;
+
+const { values: flags, positionals } = parse();
 const [command, lib, extra] = positionals;
 
 function here(): string {
@@ -70,8 +74,10 @@ async function main() {
       const root = findRoot(process.cwd()) ?? process.cwd();
       const via = flags.via as Via | undefined;
       if (via && via !== 'vite' && via !== 'file') throw new Error('--via is vite or file');
-      const entry = joinLib(root, need(), { repo: flags.repo, packages: flags.packages, via });
-      console.log(`${basename(root)} joined ${lib}: ${entry.packages.join(', ')} from ${entry.repo}, via ${entry.via}`);
+      if (flags.serve && flags.serve !== 'source') throw new Error('--serve takes source; dist is the default');
+      const serve = flags.serve as 'source' | undefined;
+      const entry = joinLib(root, need(), { repo: flags.repo, packages: flags.packages, via, serve });
+      console.log(`${basename(root)} joined ${lib}: ${entry.packages.join(', ')} from ${entry.repo}, via ${entry.via}${entry.serve ? ', serving source' : ''}`);
       if (entry.via !== 'vite') return;
       let wired = false;
       for (const { file, m } of unwiredViteConfigs(root)) {
