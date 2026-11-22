@@ -56,6 +56,10 @@ import resolves through the package's `exports` as usual, then `dist/<path>.js` 
 library whose build only compiles TypeScript; types still come from `dist`. For one run,
 `ALPO_WEASEL=npm` turns a link off and `ALPO_WEASEL=<path>` serves another checkout (a worktree, say).
 
+An esbuild build beside the dev server (a script bundling a player or a worker, say) takes the same links
+with `import { alpo } from '@msb235/alpo/esbuild'` in its `plugins`. Outside any bundler, `activeLinks(root)`
+from `@msb235/alpo` says which libraries are linked, from which checkout, and whether as source.
+
 ### `via: file`
 
 For consumers outside vite. `link` rewrites each dependency the library supplies to `file:<checkout package>`
