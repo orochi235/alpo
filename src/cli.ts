@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { findRoot, readConfig, tildify, type Via } from './config.ts';
 import { registered } from './home.ts';
 import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
 import { bump, link, Skip, status, unlink } from './ops.ts';
-import { depTable, latestOf, libTable } from './report.ts';
+import { depTable, libTable } from './report.ts';
+import { check, sweep } from './sweep.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
@@ -18,9 +20,12 @@ const USAGE = `alpo — serve a library from its checkout until a release carrie
   alpo sweep [<lib>]      bump every signed-up repo whose link a release now covers
   alpo ls [--deps]        every signed-up repo: pins, links, and what the latest release covers;
                           --deps gives each package its own row, by manifest
-  alpo check              one line per covered link in this repo (for a SessionStart hook)`;
+  alpo check              one line per covered link in this repo (for a SessionStart hook)
+  alpo --version`;
 
-const { values: flags, positionals } = parseArgs({
+let parsed;
+try {
+  parsed = parseArgs({
   allowPositionals: true,
   options: {
     repo: { type: 'string' },
@@ -32,8 +37,14 @@ const { values: flags, positionals } = parseArgs({
     deps: { type: 'boolean' },
     exact: { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
+    version: { type: 'boolean', short: 'v' },
   },
 });
+} catch (e) {
+  console.error(`alpo: ${(e as Error).message}\n\n${USAGE}`);
+  process.exit(1);
+}
+const { values: flags, positionals } = parsed;
 const [command, lib, extra] = positionals;
 
 function here(): string {
@@ -42,25 +53,12 @@ function here(): string {
   return root;
 }
 
-async function sweep(only?: string) {
-  for (const root of registered()) {
-    for (const s of await status(root, { fetch: true, fresh: true })) {
-      if ((only && s.lib !== only) || !s.link || !s.covered) continue;
-      const label = `${basename(root)} ${s.lib}`;
-      try {
-        // No version: each package moves to its own latest, which need not match its siblings'.
-        const r = await bump(root, s.lib);
-        const what = r.changed.map((c) => `${c.name} ${c.to}`).join(', ') || 'nothing to move';
-        console.log(`${label}: bumped ${what}${r.commit ? ` in ${r.commit}` : ''}, unlinked`);
-      } catch (e) {
-        console.log(`${label}: ${e instanceof Skip ? 'skipped' : 'failed'}: ${(e as Error).message}`);
-        if (!(e instanceof Skip)) process.exitCode = 1;
-      }
-    }
-  }
-}
-
 async function main() {
+  if (flags.version) {
+    // From `src/` and from `dist/` alike, the manifest is one directory up.
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    return console.log(version);
+  }
   if (flags.help || !command) return console.log(USAGE);
   const need = () => {
     if (!lib) throw new Error(`usage: alpo ${command} <lib>`);
@@ -104,7 +102,8 @@ async function main() {
       return;
     }
     case 'sweep':
-      return sweep(lib);
+      if (!(await sweep(lib))) process.exitCode = 1;
+      return;
     case 'ls': {
       const all = (await Promise.all(registered().map((r) => status(r, { fetch: true })))).flat();
       if (!all.length) return console.log('nothing has joined yet');
@@ -112,12 +111,7 @@ async function main() {
     }
     case 'check': {
       const root = findRoot(process.cwd());
-      if (!root) return;
-      for (const s of await status(root, { fetch: true }))
-        if (s.link && s.covered)
-          console.log(
-            `alpo: ${basename(root)} is linked to ${s.lib}${s.link.for ? ` for "${s.link.for}"` : ''}, and ${latestOf(s)} carries what it needs: run \`alpo bump ${s.lib}\``,
-          );
+      if (root) for (const line of await check(root)) console.log(line);
       return;
     }
     default:

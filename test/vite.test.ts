@@ -45,3 +45,40 @@ test('a linked library resolves from its checkout, and an unlinked one does not'
   assert.deepEqual(plain.exclude, []);
   assert.ok(!plain.id?.startsWith(realpathSync(lib)));
 });
+
+test('the dev server restarts when a link changes and reloads once a checkout’s dist settles', async () => {
+  const dir = scratch();
+  const lib = join(dir, 'lib');
+  const app = join(dir, 'app');
+  library(lib);
+  repo(app, { 'package.json': { name: 'app', devDependencies: { vite: '*', '@lib/a': '1.0.0' } } });
+  joinLib(app, 'lib', { repo: lib });
+  link(app, 'lib', {}, stubTools());
+
+  const server = await createServer({ root: app, configFile: false, logLevel: 'silent', plugins: [alpo()] });
+  const seen: string[] = [];
+  server.restart = async () => void seen.push('restart');
+  const send = server.hot.send.bind(server.hot);
+  server.hot.send = ((payload: { type: string }) => {
+    seen.push(payload.type);
+    return send(payload as never);
+  }) as typeof server.hot.send;
+  const until = async (what: string, ms: number) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 50)))
+      if (seen.includes(what)) return;
+    assert.fail(`no ${what} within ${ms} ms; saw ${JSON.stringify(seen)}`);
+  };
+  try {
+    // A rebuild writes into dist in a burst; nothing reloads until it goes quiet.
+    put(lib, { 'packages/a/dist/index.js': 'export const a = 2;\n' });
+    put(lib, { 'packages/a/node_modules/x/dist/index.js': '' });
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(seen, []);
+    await until('full-reload', 3000);
+
+    unlink(app, 'lib', stubTools());
+    await until('restart', 2000);
+  } finally {
+    await server.close();
+  }
+});
