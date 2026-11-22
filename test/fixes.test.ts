@@ -222,7 +222,7 @@ test('join wires a vite config and adds alpo beside it, and leaves one it cannot
   const fn = `import { defineConfig } from 'vite';\nexport default defineConfig(({ mode }) => ({ plugins: [] }));\n`;
   repo(root, {
     'package.json': { name: 'app', private: true, workspaces: ['apps/*'] },
-    'apps/web/package.json': { name: 'web', devDependencies: { vite: '*', '@lib/a': '1.0.0' } },
+    'apps/web/package.json': { name: 'web', devDependencies: { '@lib/a': '1.0.0', vite: '*' } },
     'apps/web/vite.config.ts': `import { defineConfig } from 'vite';\n\nexport default defineConfig({\n  plugins: [],\n});\n`,
     'apps/odd/package.json': { name: 'odd', devDependencies: { vite: '*' } },
     'apps/odd/vite.config.ts': fn,
@@ -240,7 +240,11 @@ test('join wires a vite config and adds alpo beside it, and leaves one it cannot
     `import { alpo } from '@msb235/alpo/vite';\nimport { defineConfig } from 'vite';\n\nexport default defineConfig({\n  plugins: [alpo()],\n});\n`,
   );
   const { version } = read(join(import.meta.dirname, '../package.json'));
-  assert.equal(read(join(root, 'apps/web/package.json')).devDependencies['@msb235/alpo'], `^${version}`);
+  assert.deepEqual(read(join(root, 'apps/web/package.json')).devDependencies, {
+    '@lib/a': '1.0.0',
+    '@msb235/alpo': `^${version}`,
+    vite: '*',
+  });
   assert.equal(readFileSync(join(root, 'apps/odd/vite.config.ts'), 'utf8'), fn);
   assert.equal(read(join(root, 'apps/odd/package.json')).devDependencies['@msb235/alpo'], undefined);
 });

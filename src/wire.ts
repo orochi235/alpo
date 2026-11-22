@@ -31,7 +31,8 @@ export function wireVite(file: string, m: Manifest): boolean {
   writeFileSync(file, code.endsWith('\n') ? code : `${code}\n`);
 
   if (!depsOf(m).some((d) => d.name === '@msb235/alpo')) {
-    m.json.devDependencies = { ...(m.json.devDependencies as object | undefined), '@msb235/alpo': ownRange() };
+    const dev = { ...(m.json.devDependencies as Record<string, string> | undefined), '@msb235/alpo': ownRange() };
+    m.json.devDependencies = Object.fromEntries(Object.entries(dev).sort(([a], [b]) => a.localeCompare(b)));
     writeManifest(m);
   }
   return true;
