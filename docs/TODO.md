@@ -1,9 +1,10 @@
 # TODO
 
-- **Sign up the other consumers.** Each has its own copy of the linking code today: iconfab and fiddy
-  (`weasel.vite.ts`), blinken for blits (`../blits`, `BLITS=npm`; its weasel link is on alpo), brick-icons
-  (`PEZLIE=`), and `file:` siblings in flatly (weasel), brainhouse (icehouse) and lbx-editor (obwat, bil-lbx).
-  Delete each repo's own code as it joins. astv, collego, klieg and blinken joined for weasel 2026-11-21.
-- **No documented way for a config to ask what is linked.** blinken's forge loads its vite plugin from npm even
-  when weasel is linked, so the plugin and the workshop it serves can come from different weasels; the old
-  `WEASEL=` switch loaded both from the checkout. `activeLinks` would answer it but is not in the README.
+- **Sign up blinken's blits link and brick-icons.** Both serve a sibling checkout's *source*, not its `dist`:
+  blinken's `blits.config.ts` aliases `@msb235/blits` to `../blits/src` whenever that exists (`BLITS=npm` turns it
+  off), and brick-icons' `lab/vite.config.ts` aliases `pezlie` to `$PEZLIE/wall/src` and has `WEASEL_SRC`. alpo
+  serves built `dist` only, so moving them over means either a build step in those workflows or a source mode
+  in alpo; undecided (2026-11-21). brick-icons also had uncommitted edits to that config.
+  iconfab, fiddy, astv, collego, klieg, and blinken's weasel link are on alpo. flatly and lbx-editor take
+  everything from npm and have no linking code to replace. brainhouse's `file:../../icehouse` is not alpo's
+  case: icehouse is unpublished, so no release will ever carry it.
