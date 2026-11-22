@@ -10,3 +10,6 @@
   klieg and collego all hit ERESOLVE or nested per-workspace copies until the lockfile's `node_modules/@weasel-js/*`
   entries were dropped before `npm install`. collego's `scripts/weasel.mjs` does exactly that and then asserts one
   hoisted copy; `bump` should do the same, and collego's script can go once it does.
+- **`join` on an already-joined repo rewrites `.alpo.json` in its own formatting**, undoing the repo's formatter
+  (seen in blinken and astv, 2026-11-21: biome's one-line `packages` array comes back split). Leave the file alone
+  when its content is unchanged.
