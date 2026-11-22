@@ -69,10 +69,13 @@ test('the dev server restarts when a link changes and reloads once a checkout’
     assert.fail(`no ${what} within ${ms} ms; saw ${JSON.stringify(seen)}`);
   };
   try {
-    // A rebuild writes into dist in a burst; nothing reloads until it goes quiet.
-    put(lib, { 'packages/a/dist/index.js': 'export const a = 2;\n' });
-    put(lib, { 'packages/a/node_modules/x/dist/index.js': '' });
-    await new Promise((r) => setTimeout(r, 500));
+    // A rebuild writes into dist in a burst; nothing reloads until it goes quiet. The burst also outlasts
+    // the watcher's startup, which a loaded machine can take a while over.
+    for (let i = 0; i < 6; i++) {
+      put(lib, { 'packages/a/dist/index.js': `export const a = ${i};\n` });
+      put(lib, { 'packages/a/node_modules/x/dist/index.js': '' });
+      await new Promise((r) => setTimeout(r, 200));
+    }
     assert.deepEqual(seen, []);
     await until('full-reload', 3000);
 

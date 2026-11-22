@@ -52,6 +52,10 @@ export function peersOf(active: Active[]): string[] {
   return [...peers].sort();
 }
 
+/** The config and local files' contents, to tell a real change from a stray event. */
+const linkFiles = (root: string) =>
+  [CONFIG, LOCAL].map((f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : '')).join('\0');
+
 /** How long a checkout's `dist` files stay unwritten before its build is taken as done. */
 const BUILD_QUIET_MS = 1500;
 
@@ -69,6 +73,7 @@ export type AlpoPlugin = { name: string; [hook: string]: any };
 export function alpo(opts: { from?: string } = {}): AlpoPlugin {
   let active: Active[] = [];
   let root: string | undefined;
+  let loaded = '';
   let closeWatchers = () => {};
   const plugin: Plugin = {
     name: 'alpo',
@@ -76,6 +81,7 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
     config(user) {
       root = findRoot(opts.from ?? user.root ?? process.cwd());
       if (!root) return;
+      loaded = linkFiles(root);
       active = activeLinks(root);
       if (!active.length) return;
       return {
@@ -98,9 +104,11 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
       if (!root) return;
       const watchers: FSWatcher[] = [];
       // Linking or unlinking rewrites the local file; the server picks it up without a manual restart.
+      // FSEvents can deliver a write from just before the watch began, so only a real change restarts.
+      const at = root;
       watchers.push(
-        watch(root, (_event, name) => {
-          if (name === LOCAL || name === CONFIG) void server.restart();
+        watch(at, (_event, name) => {
+          if ((name === LOCAL || name === CONFIG) && linkFiles(at) !== loaded) void server.restart();
         }),
       );
       for (const a of active) {
