@@ -63,6 +63,7 @@
     "vite": "^8.3.8"
   },
   "dependencies": {
+    "magicast": "^0.5.5",
     "semver": "^7.8.6"
   }
 }

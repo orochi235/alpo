@@ -37,7 +37,9 @@ from the repository root.
 
 ### `via: vite`
 
-Nothing in the manifests changes. Load the plugin, and a linked library's imports resolve from its checkout's
+Nothing in the manifests changes when you link. `join` loads the plugin in each `vite.config.*` and adds
+`@msb235/alpo` to the devDependencies beside it; a config built in a function gets the wiring line printed
+instead, to add by hand. With the plugin loaded, a linked library's imports resolve from its checkout's
 root, so the checkout's own workspace links answer them and each package's `exports` apply. Its packages are kept
 out of prebundling, their peer dependencies are deduped to the app's copy, the checkout joins `server.fs.allow`, the page reloads when a `dist` is rewritten, and the
 server restarts itself when you link or unlink.

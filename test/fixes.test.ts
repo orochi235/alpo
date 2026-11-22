@@ -213,3 +213,34 @@ test('bump leaves a range that admits latest over a lock installing it, unless -
   await bump(root, 'lib', { version: '1.2.0' }, stubTools());
   assert.equal(spec(), '1.2.0');
 });
+
+test('join wires a vite config and adds alpo beside it, and leaves one it cannot edit alone', () => {
+  const dir = scratch();
+  const lib = join(dir, 'lib');
+  library(lib);
+  const root = join(dir, 'app');
+  const fn = `import { defineConfig } from 'vite';\nexport default defineConfig(({ mode }) => ({ plugins: [] }));\n`;
+  repo(root, {
+    'package.json': { name: 'app', private: true, workspaces: ['apps/*'] },
+    'apps/web/package.json': { name: 'web', devDependencies: { vite: '*', '@lib/a': '1.0.0' } },
+    'apps/web/vite.config.ts': `import { defineConfig } from 'vite';\n\nexport default defineConfig({\n  plugins: [],\n});\n`,
+    'apps/odd/package.json': { name: 'odd', devDependencies: { vite: '*' } },
+    'apps/odd/vite.config.ts': fn,
+  });
+  const r = spawnSync(process.execPath, [join(import.meta.dirname, '../src/cli.ts'), 'join', 'lib', '--repo', lib], {
+    cwd: root,
+    encoding: 'utf8',
+    env: process.env,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /wired .*apps\/web\/vite\.config\.ts/);
+  assert.match(r.stdout, /wire .*apps\/odd\/vite\.config\.ts by hand/);
+  assert.equal(
+    readFileSync(join(root, 'apps/web/vite.config.ts'), 'utf8'),
+    `import { alpo } from '@msb235/alpo/vite';\nimport { defineConfig } from 'vite';\n\nexport default defineConfig({\n  plugins: [alpo()],\n});\n`,
+  );
+  const { version } = read(join(import.meta.dirname, '../package.json'));
+  assert.equal(read(join(root, 'apps/web/package.json')).devDependencies['@msb235/alpo'], `^${version}`);
+  assert.equal(readFileSync(join(root, 'apps/odd/vite.config.ts'), 'utf8'), fn);
+  assert.equal(read(join(root, 'apps/odd/package.json')).devDependencies['@msb235/alpo'], undefined);
+});

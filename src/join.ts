@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { CONFIG, expandHome, type LibConfig, LOCAL, readConfig, readLocal, type Via, writeConfig } from './config.ts';
 import { register, unregister } from './home.ts';
 import { git } from './sh.ts';
-import { depsOf, manifests } from './workspaces.ts';
+import { depsOf, type Manifest, manifests } from './workspaces.ts';
 
 /** `@scope/*` when every package the checkout publishes shares one scope; otherwise their names. */
 export function defaultPackages(checkout: string): string[] {
@@ -15,14 +15,13 @@ export function defaultPackages(checkout: string): string[] {
 
 const usesVite = (root: string) => manifests(root).some((m) => depsOf(m).some((d) => d.name === 'vite'));
 
-/** Vite configs under the root that don't load the plugin yet. */
-export function unwiredViteConfigs(root: string): string[] {
-  const dirs = manifests(root).map((m) => m.dir);
-  return dirs.flatMap((dir) =>
-    readdirSync(dir)
+/** Vite configs under the root that don't load the plugin yet, each with the manifest beside it. */
+export function unwiredViteConfigs(root: string): Array<{ file: string; m: Manifest }> {
+  return manifests(root).flatMap((m) =>
+    readdirSync(m.dir)
       .filter((f) => /^vite\.config\.[cm]?[jt]s$/.test(f))
-      .map((f) => join(dir, f))
-      .filter((f) => !readFileSync(f, 'utf8').includes('@msb235/alpo/vite')),
+      .map((f) => ({ file: join(m.dir, f), m }))
+      .filter(({ file }) => !readFileSync(file, 'utf8').includes('@msb235/alpo/vite')),
   );
 }
 

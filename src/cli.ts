@@ -8,6 +8,7 @@ import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
 import { bump, link, Skip, status, unlink } from './ops.ts';
 import { depTable, libTable } from './report.ts';
 import { check, sweep } from './sweep.ts';
+import { WIRING, wireVite } from './wire.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
@@ -71,9 +72,15 @@ async function main() {
       if (via && via !== 'vite' && via !== 'file') throw new Error('--via is vite or file');
       const entry = joinLib(root, need(), { repo: flags.repo, packages: flags.packages, via });
       console.log(`${basename(root)} joined ${lib}: ${entry.packages.join(', ')} from ${entry.repo}, via ${entry.via}`);
-      if (entry.via === 'vite')
-        for (const f of unwiredViteConfigs(root))
-          console.log(`  wire ${tildify(f)}: import { alpo } from '@msb235/alpo/vite'; plugins: [alpo(), …]`);
+      if (entry.via !== 'vite') return;
+      let wired = false;
+      for (const { file, m } of unwiredViteConfigs(root)) {
+        if (wireVite(file, m)) {
+          wired = true;
+          console.log(`  wired ${tildify(file)}`);
+        } else console.log(`  wire ${tildify(file)} by hand: ${WIRING}`);
+      }
+      if (wired) console.log('  run `npm install` to fetch @msb235/alpo');
       return;
     }
     case 'leave':
