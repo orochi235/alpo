@@ -1,6 +1,6 @@
 {
   "name": "@msb235/alpo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Serve a library from its local checkout until a release carries what you need, then move the pin",
   "keywords": [
     "npm",
