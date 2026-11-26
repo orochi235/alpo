@@ -116,3 +116,7 @@ and the lockfile, so other work in the tree is left alone.
 (`node dist/cli.js` from a checkout) and the vite plugin both run from. The suite stubs `npm`, `swift` and
 `go`; `scripts/e2e-swift.sh` and `scripts/e2e-go.sh`, run from the repository root, drive the real toolchains
 against perch from GitHub in a temporary directory.
+
+To release, bump `version` in `package.json`, commit, and push a `v<version>` tag: `release.yml` typechecks,
+tests and publishes through npm trusted publishing (`npm trust list @msb235/alpo` shows the link), with no
+token or one-time password. Then point `orochi235/homebrew-tap`'s `Formula/alpo.rb` at the new tarball.
