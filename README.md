@@ -66,6 +66,26 @@ For consumers outside vite. `link` rewrites each dependency the library supplies
 and runs `npm install`; `unlink` and `bump` put the saved specs back. While linked, the manifests are modified
 in the working tree and must not be committed.
 
+### SwiftPM (`via: edit`) and Go (`via: work`)
+
+`join` works out what kind of package the repository and the checkout are, and takes the library the way
+that package manager links natively; neither changes a manifest.
+
+| | SwiftPM | Go |
+|---|---|---|
+| packages | the checkout's identity: `perch` | its module paths: `github.com/orochi235/perch/v2` |
+| `link` | `swift package edit <id> --path <checkout>` | a `go.work` using `.` and the checkout, or `go work use` on the one already there |
+| `unlink` | `swift package unedit <id>` | deletes the `go.work` alpo made, or `go work edit -dropuse` |
+| latest | the checkout's newest stable `v1.2.3` or `1.2.3` tag | its newest stable `v1.2.3` tag of the major the module path names (`sub/v1.2.3` for a nested module) |
+| `bump` | rewrites the requirement in `Package.swift`, `swift package update`, `swift build` | `go get <module>@<version>`, `go build`, with `GOWORK=off` |
+| commits | `Package.swift`, and `Package.resolved` when it is tracked | `go.mod`, `go.sum` |
+| ignores | `Packages/`, where `edit` leaves its symlink | `go.work` and `go.work.sum`, unless the repository tracks a `go.work` |
+
+A Swift `path:` dependency on the library shows as `unpinned`; `link` refuses it, and `bump` turns it into a
+`url:` dependency on the checkout's origin (GitHub's over https) at the release. A requirement keeps its shape
+when it moves: `from:` stays `from:`, `exact:` stays `exact:`, `.upToNextMinor` stays itself.
+Xcode resolves packages on its own and does not see `swift package edit`.
+
 ## After a release
 
 ```sh
@@ -85,4 +105,6 @@ and the lockfile, so other work in the tree is left alone.
 ## Developing
 
 `npm test` runs the suite on Node's own test runner; `npm run build` writes `dist`, which the CLI
-(`node dist/cli.js` from a checkout) and the vite plugin both run from.
+(`node dist/cli.js` from a checkout) and the vite plugin both run from. The suite stubs `npm`, `swift` and
+`go`; `scripts/e2e-swift.sh` and `scripts/e2e-go.sh`, run from the repository root, drive the real toolchains
+against perch from GitHub in a temporary directory.

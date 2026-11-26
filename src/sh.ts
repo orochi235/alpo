@@ -7,8 +7,8 @@ export interface Result {
   stderr: string;
 }
 
-export function run(cmd: string, args: string[], cwd: string, timeout?: number): Result {
-  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout });
+export function run(cmd: string, args: string[], cwd: string, timeout?: number, env?: Record<string, string>): Result {
+  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout, env: env ? { ...process.env, ...env } : undefined });
   return { ok: r.status === 0, stdout: r.stdout?.trim() ?? '', stderr: (r.stderr ?? r.error?.message ?? '').trim() };
 }
 

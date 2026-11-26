@@ -24,14 +24,16 @@ export function lockedOf(lock: Lock | undefined, manifest: string, name: string)
  * Whether a pin already gets `target` without a rewrite: it names it exactly, or its range admits it and
  * the lockfile, when there is one, installs it. A range admitting `target` over a stale lock still moves.
  */
-export function settled(spec: string, target: string, locked?: string): boolean {
+export function settled(spec: string | undefined, target: string, locked?: string): boolean {
+  if (!spec) return false;
   if (spec === target) return true;
   return !!validRange(spec) && satisfies(target, spec) && (locked === undefined || locked === target);
 }
 
 /** What `ls` says of one pin: `current` exactly when a plain `bump` would leave it alone. */
-export function pinState(spec: string, latest: string | undefined, locked?: string): 'current' | 'behind' | '?' | '-' {
-  if (!validRange(spec)) return '-';
+export function pinState(spec: string | undefined, latest: string | undefined, locked?: string): 'current' | 'behind' | '?' | '-' {
+  // `validRange('')` is `*`, so an absent range has to be ruled out before asking.
+  if (!spec || !validRange(spec)) return '-';
   if (!latest) return '?';
   return settled(spec, latest, locked) ? 'current' : 'behind';
 }

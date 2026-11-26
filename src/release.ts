@@ -27,9 +27,9 @@ export function fetchTags(checkout: string, fresh = false): { ok: true } | { ok:
   return { ok: true };
 }
 
-/** The tag a release of `name` at `version` left in the checkout, in any of the usual spellings. */
-export function tagFor(checkout: string, name: string, version: string): string | undefined {
-  return [`${name}@${version}`, `v${version}`, version].find(
+/** The first of a release's possible tag spellings that the checkout has. */
+export function tagFor(checkout: string, spellings: string[]): string | undefined {
+  return spellings.find(
     (tag) => git(checkout, 'rev-parse', '--quiet', '--verify', `refs/tags/${tag}`).ok,
   );
 }

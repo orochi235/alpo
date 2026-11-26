@@ -2,8 +2,12 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-/** How a consumer is pointed at a checkout: its dev server resolves imports there, or its manifests say `file:`. */
-export type Via = 'vite' | 'file';
+/**
+ * How a consumer is pointed at a checkout, which also says what kind of package it is. npm: its dev server
+ * resolves imports there (`vite`), or its manifests say `file:`. SwiftPM: `swift package edit`. Go: a `go.work`.
+ */
+export type Via = 'vite' | 'file' | 'edit' | 'work';
+export const VIAS: Via[] = ['vite', 'file', 'edit', 'work'];
 
 export interface LibConfig {
   /** Package names this library supplies, `*` matching within one path segment: `@weasel-js/*`. */
@@ -27,6 +31,8 @@ export interface Link {
   since: string;
   /** For `file` links, each manifest's specs as they were before linking, by manifest path from the root. */
   saved?: Record<string, Record<string, string>>;
+  /** Files linking created, which unlinking deletes. */
+  created?: string[];
 }
 
 /** `.alpo.local.json`, untracked: what this checkout is linked to right now. */

@@ -7,6 +7,7 @@ import { registered } from '../src/home.ts';
 import { joinLib, leaveLib } from '../src/join.ts';
 import { bump, link, Skip, unlink } from '../src/ops.ts';
 import { contains, tagFor } from '../src/release.ts';
+import { node } from '../src/platforms/node.ts';
 import { git } from '../src/sh.ts';
 import { commitAll, library, put, repo, scratch, stubTools } from './helpers.ts';
 
@@ -131,8 +132,8 @@ test('a release covers a link once its tag contains every needed commit', () => 
   git(lib, 'commit', '--quiet', '--allow-empty', '-m', 'needed');
   const later = git(lib, 'rev-parse', 'HEAD').stdout;
   git(lib, 'tag', '@lib/a@1.1.0', needed);
-  assert.equal(tagFor(lib, '@lib/a', '1.1.0'), '@lib/a@1.1.0');
-  assert.equal(tagFor(lib, '@lib/a', '9.9.9'), undefined);
+  assert.equal(tagFor(lib, node.tags(lib, '@lib/a', '1.1.0')), '@lib/a@1.1.0');
+  assert.equal(tagFor(lib, node.tags(lib, '@lib/a', '9.9.9')), undefined);
   assert.ok(contains(lib, '@lib/a@1.1.0', [needed]));
   assert.ok(!contains(lib, '@lib/a@1.1.0', [needed, later]));
 });

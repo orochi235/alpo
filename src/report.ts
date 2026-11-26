@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import type { Status } from './ops.ts';
 import { pinState } from './pins.ts';
 
-/** npm's `latest` for the library, read from the first of its packages npm answered for. */
+/** The latest release of the library, read from the first of its packages npm answered for. */
 export const latestOf = (s: Status): string | undefined => s.pins.find((p) => p.latest)?.latest;
 
 export function libState(s: Status): string {
@@ -14,14 +14,16 @@ export function libState(s: Status): string {
     if (s.fetchError) notes.push('tag fetch failed');
     return `waiting (${notes.join('; ')})`;
   }
-  const behind = s.pins.filter((p) => pinState(p.spec, p.latest, p.locked) === 'behind');
+  const behind = s.pins.filter((p) => pinState(p.range, p.latest, p.locked) === 'behind');
   if (behind.length) {
     const targets = new Set(behind.map((p) => p.latest));
     return targets.size === 1
       ? `behind ${[...targets][0]}`
       : `behind: ${[...new Set(behind.map((p) => `${p.name} ${p.latest}`))].join(', ')}`;
   }
-  if (s.pins.some((p) => pinState(p.spec, p.latest, p.locked) === '?')) return 'latest unknown';
+  const states = s.pins.map((p) => pinState(p.range, p.latest, p.locked));
+  if (states.includes('?')) return 'latest unknown';
+  if (states.length && states.every((st) => st === '-')) return 'unpinned';
   return s.pins.length ? 'current' : '-';
 }
 
@@ -56,7 +58,7 @@ export function depTable(all: Status[]): string {
           p.manifest,
           p.spec,
           p.latest ?? '?',
-          s.link ? (s.covered ? 'linked, covered' : 'linked, waiting') : pinState(p.spec, p.latest, p.locked),
+          s.link ? (s.covered ? 'linked, covered' : 'linked, waiting') : pinState(p.range, p.latest, p.locked),
         ])
       : [[basename(s.root), s.lib, '-', '-', '-', '-']],
   );

@@ -8,7 +8,8 @@ const status = (pins: Status['pins'], link?: Status['link']): Status => ({
   root: '/src/app',
   lib: 'lib',
   config: { packages: ['@lib/*'], repo: '~/src/lib', via: 'vite' },
-  pins,
+  // npm's spec is its range, as the node platform reports it.
+  pins: pins.map((p) => ({ range: p.spec, ...p })),
   ...(link ? { link } : {}),
 });
 
@@ -27,6 +28,7 @@ test('a library is behind only when some pin refuses latest', () => {
   assert.equal(libState(status([pin('^1.4.0'), pin('1.3.0')])), 'behind 1.4.0');
   assert.equal(libState(status([{ ...pin('^1.0.0'), latest: undefined }])), 'latest unknown');
   assert.equal(libState(status([])), '-');
+  assert.equal(libState(status([{ manifest: 'Package.swift', name: 'lib', spec: 'path: "../lib"', range: undefined, latest: '1.4.0' }])), 'unpinned');
 });
 
 test('a library behind on two packages names each one\'s own latest', () => {
@@ -35,7 +37,7 @@ test('a library behind on two packages names each one\'s own latest', () => {
     { manifest: 'package.json', name: '@lib/b', spec: '2.0.0', latest: '2.1.0' },
   ]);
   assert.equal(libState(s), 'behind 2.1.0');
-  s.pins[0].spec = '1.3.0';
+  s.pins[0] = { ...s.pins[0], spec: '1.3.0', range: '1.3.0' };
   assert.equal(libState(s), 'behind: @lib/a 1.4.0, @lib/b 2.1.0');
 });
 

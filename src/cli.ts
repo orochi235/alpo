@@ -2,17 +2,18 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
-import { findRoot, readConfig, tildify, type Via } from './config.ts';
+import { findRoot, readConfig, tildify, VIAS, type Via } from './config.ts';
 import { registered } from './home.ts';
 import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
-import { bump, link, Skip, status, unlink } from './ops.ts';
+import { bump, link, platformOf, Skip, status, unlink } from './ops.ts';
 import { depTable, libTable } from './report.ts';
 import { check, sweep } from './sweep.ts';
 import { WIRING, wireVite } from './wire.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
-  alpo join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file] [--serve source]
+  alpo join <lib> [--repo <path>] [--packages <glob>]... [--via vite|file|edit|work] [--serve source]
+                          npm takes vite or file, SwiftPM edit, Go work; join picks from the repository
                           --serve source: a vite link serves the checkout's src, not its dist
   alpo leave <lib>
   alpo link <lib> [--for <reason>] [--needs <rev>]...
@@ -73,11 +74,13 @@ async function main() {
     case 'join': {
       const root = findRoot(process.cwd()) ?? process.cwd();
       const via = flags.via as Via | undefined;
-      if (via && via !== 'vite' && via !== 'file') throw new Error('--via is vite or file');
+      if (via && !VIAS.includes(via)) throw new Error(`--via is one of ${VIAS.join(', ')}`);
       if (flags.serve && flags.serve !== 'source') throw new Error('--serve takes source; dist is the default');
       const serve = flags.serve as 'source' | undefined;
       const entry = joinLib(root, need(), { repo: flags.repo, packages: flags.packages, via, serve });
       console.log(`${basename(root)} joined ${lib}: ${entry.packages.join(', ')} from ${entry.repo}, via ${entry.via}${entry.serve ? ', serving source' : ''}`);
+      for (const p of platformOf(entry.via).pins(root, entry).filter((p) => !p.range))
+        console.log(`  ${p.name} is ${p.spec} in ${p.manifest}: \`alpo bump ${lib}\` moves it onto a release`);
       if (entry.via !== 'vite') return;
       let wired = false;
       for (const { file, m } of unwiredViteConfigs(root)) {

@@ -10,7 +10,9 @@
     "vite",
     "dependencies",
     "dogfooding",
-    "esbuild"
+    "esbuild",
+    "swiftpm",
+    "go"
   ],
   "license": "MIT",
   "author": "orochi235",

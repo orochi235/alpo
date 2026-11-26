@@ -1,5 +1,12 @@
 # TODO
 
+- **Move brent and colm onto alpo.** Both take perch as `.package(path: "../perch")`, and colm takes brent the
+  same way; `alpo join perch` then `alpo bump perch` moves perch onto 2.6.0, which carries PerchKit (checked
+  on a scratch app, 2026-11-25). brent has no release tags yet, so colm's link to it has nothing to bump to.
+- **Go: `replace` directives and nested modules.** `pins` reads only the root `go.mod`'s `require`s, so a
+  consumer already pointing at a checkout through `replace` shows as pinned to the version it replaces, and a
+  repository with several modules shows only the root's. `link` puts only `.` in a new `go.work`.
+
 - **Move blinken's blits link and brick-icons' `PEZLIE` onto alpo, once a release carries source mode.** Both
   serve a sibling checkout's source, which `join --serve source` and `@msb235/alpo/esbuild` now cover, but
   consumers install alpo from npm, where 0.1.0 has neither. blinken: `alpo join blits --serve source --packages`

@@ -41,15 +41,22 @@ export function library(dir: string) {
   });
 }
 
-/** Records npm calls instead of running them. */
+/**
+ * Records package-manager calls instead of running them: npm's as their arguments, swift's and go's led by
+ * the command. A call whose words, joined by spaces, are or begin with an entry of `fail` fails.
+ */
 export function stubTools(fail: string[] = []): Tools & { calls: string[][] } {
   const calls: string[][] = [];
+  const record = (call: string[]) => {
+    calls.push(call);
+    const line = call.join(' ');
+    const ok = !fail.some((f) => line === f || line.startsWith(`${f} `));
+    return { ok, stdout: '', stderr: ok ? '' : 'stub failure' };
+  };
   return {
     calls,
-    npm: (_root, args) => {
-      calls.push(args);
-      const ok = !fail.includes(args.join(' '));
-      return { ok, stdout: '', stderr: ok ? '' : 'stub failure' };
-    },
+    npm: (_root, args) => record(args),
+    swift: (_root, args) => record(['swift', ...args]),
+    go: (_root, args) => record(['go', ...args]),
   };
 }
