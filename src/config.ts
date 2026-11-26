@@ -26,6 +26,8 @@ export interface Config {
 
 export interface Link {
   for?: string;
+  /** The checkout this link serves, when not the configured one: a worktree, say. */
+  from?: string;
   /** Commits of the library this repository is waiting on; a release whose tag contains all of them covers the link. */
   needs: string[];
   since: string;

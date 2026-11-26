@@ -17,16 +17,20 @@ export interface ActiveLink {
 /** `ALPO_WEASEL=npm` turns a link off for one run; `ALPO_WEASEL=<path>` serves another checkout. */
 const envKey = (lib: string) => `ALPO_${lib.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
 
-export function activeLinks(root: string): ActiveLink[] {
+/**
+ * The vite links in force: as recorded, under any `ALPO_<LIB>` override for this run unless `env` is false,
+ * as it is for what outlives the run (the types tsc reads).
+ */
+export function activeLinks(root: string, { env: useEnv = true }: { env?: boolean } = {}): ActiveLink[] {
   const config = readConfig(root);
   const local = readLocal(root);
   return Object.entries(config.libs).flatMap(([lib, cfg]) => {
     if (cfg.via !== 'vite') return [];
-    const env = process.env[envKey(lib)];
+    const env = useEnv ? process.env[envKey(lib)] : undefined;
     if (env === 'npm') return [];
     const link = local.links[lib];
     if (!env && !link) return [];
-    const checkout = env ? expandHome(env) : expandHome(cfg.repo, root);
+    const checkout = env ? expandHome(env) : expandHome(link?.from ?? cfg.repo, root);
     if (!existsSync(checkout)) throw new Error(`alpo: ${lib} is linked but ${tildify(checkout)} does not exist`);
     const packages = new Map([...packagesIn(checkout)].filter(([name]) => matches(cfg.packages, name)));
     const sourceDirs = cfg.serve === 'source' ? [...packages.values()].map((d) => realpathSync(d)) : undefined;

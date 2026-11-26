@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { type Plugin, searchForWorkspaceRoot } from 'vite';
 import { CONFIG, findRoot, LOCAL, tildify } from './config.ts';
 import { type ActiveLink, activeLinks, linkFor, peersOf, served } from './links.ts';
+import { writeTypePaths } from './typepaths.ts';
 
 export { activeLinks, peersOf, sourceOf } from './links.ts';
 
@@ -36,6 +37,8 @@ export function alpo(opts: { from?: string } = {}): AlpoPlugin {
       root = findRoot(opts.from ?? user.root ?? process.cwd());
       if (!root) return;
       loaded = linkFiles(root);
+      // Rewritten at each start as well as on link, so an `npm install` that put back alpo's empty copy is undone.
+      writeTypePaths(root);
       active = activeLinks(root);
       if (!active.length) return;
       return {

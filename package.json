@@ -41,7 +41,8 @@
     "./esbuild": {
       "types": "./dist/esbuild.d.ts",
       "default": "./dist/esbuild.js"
-    }
+    },
+    "./tsconfig.json": "./dist/tsconfig.json"
   },
   "files": [
     "dist"
@@ -50,7 +51,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/empty-tsconfig.mjs",
     "prepare": "npm run build",
     "test": "node --test 'test/**/*.test.ts'",
     "typecheck": "tsc --noEmit"

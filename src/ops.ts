@@ -1,21 +1,24 @@
 import { existsSync } from 'node:fs';
 import {
   type Config,
+  expandHome,
   type LibConfig,
   type Link,
   libOf,
   readConfig,
   readLocal,
+  tildify,
   today,
   type Via,
   writeLocal,
 } from './config.ts';
-import { type BumpResult, checkoutOf, type Platform, realTools } from './platform.ts';
+import { type BumpResult, checkoutOf, linkedCheckout, type Platform, realTools } from './platform.ts';
 import { go } from './platforms/go.ts';
 import { node } from './platforms/node.ts';
 import { swift } from './platforms/swift.ts';
 import { contains, fetchTags, offTrunk, tagFor } from './release.ts';
 import { git } from './sh.ts';
+import { writeTypePaths } from './typepaths.ts';
 
 export { type BumpResult, bumpMessage, checkoutOf, realTools, Skip, type Tools } from './platform.ts';
 export { pinsOf } from './platforms/node.ts';
@@ -29,21 +32,33 @@ export const PLATFORMS: Array<{ platform: Platform; vias: Via[] }> = [
   { platform: go, vias: ['work'] },
 ];
 
-export function link(root: string, name: string, opts: { for?: string; needs?: string[] }, tools = realTools): Link {
+/** Keeps tsc's view of a vite library's links matching the dev server's. */
+function syncTypes(root: string, lib: LibConfig) {
+  if (lib.via === 'vite') writeTypePaths(root);
+}
+
+export function link(
+  root: string,
+  name: string,
+  opts: { for?: string; needs?: string[]; from?: string },
+  tools = realTools,
+): Link {
   const lib = libOf(readConfig(root), name);
-  const checkout = checkoutOf(root, lib);
-  if (!existsSync(checkout)) throw new Error(`no checkout at ${lib.repo}`);
+  const from = opts.from ? tildify(expandHome(opts.from)) : undefined;
+  const checkout = linkedCheckout(root, lib, from ? { from, needs: [], since: '' } : undefined);
+  if (!existsSync(checkout)) throw new Error(`no checkout at ${from ?? lib.repo}`);
   const needs = (opts.needs?.length ? opts.needs : ['HEAD']).map((rev) => {
     const r = git(checkout, 'rev-parse', '--verify', `${rev}^{commit}`);
     if (!r.ok) throw new Error(`${rev} is not a commit in ${lib.repo}`);
     return r.stdout;
   });
   const prior = readLocal(root).links[name];
-  const entry: Link = { ...(opts.for ? { for: opts.for } : {}), needs, since: today() };
+  const entry: Link = { ...(opts.for ? { for: opts.for } : {}), ...(from ? { from } : {}), needs, since: today() };
   platformOf(lib.via).link(root, name, lib, checkout, entry, tools, prior);
   const local = readLocal(root);
   local.links[name] = entry;
   writeLocal(root, local);
+  syncTypes(root, lib);
   return entry;
 }
 
@@ -52,9 +67,10 @@ export function unlink(root: string, name: string, tools = realTools) {
   const local = readLocal(root);
   const entry = local.links[name];
   if (!entry) return false;
-  platformOf(lib.via).unlink(root, name, lib, checkoutOf(root, lib), entry, tools);
+  platformOf(lib.via).unlink(root, name, lib, linkedCheckout(root, lib, entry), entry, tools);
   delete local.links[name];
   writeLocal(root, local);
+  syncTypes(root, lib);
   return true;
 }
 
@@ -71,9 +87,11 @@ export async function bump(
 ): Promise<BumpResult> {
   const lib = libOf(readConfig(root), name);
   const local = readLocal(root);
-  const r = await platformOf(lib.via).bump(root, name, lib, checkoutOf(root, lib), local.links[name], opts, tools);
+  const entry = local.links[name];
+  const r = await platformOf(lib.via).bump(root, name, lib, linkedCheckout(root, lib, entry), entry, opts, tools);
   delete local.links[name];
   writeLocal(root, local);
+  syncTypes(root, lib);
   return r;
 }
 
@@ -100,7 +118,7 @@ export async function status(root: string, opts: { fetch?: boolean; fresh?: bool
   return Promise.all(
     Object.entries(config.libs).map(async ([lib, cfg]) => {
       const platform = platformOf(cfg.via);
-      const checkout = checkoutOf(root, cfg);
+      const checkout = linkedCheckout(root, cfg, local.links[lib]);
       const found = platform.pins(root, cfg);
       const names = [...new Set(found.map((p) => p.name))];
       const ctx = { root, checkout, fresh: opts.fresh };

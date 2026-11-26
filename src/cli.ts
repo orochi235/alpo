@@ -8,7 +8,9 @@ import { joinLib, leaveLib, unwiredViteConfigs } from './join.ts';
 import { bump, link, platformOf, Skip, status, unlink } from './ops.ts';
 import { depTable, libTable } from './report.ts';
 import { check, sweep } from './sweep.ts';
+import { EXTENDS } from './typepaths.ts';
 import { WIRING, wireVite } from './wire.ts';
+import { ownPaths, sharedTsconfig, wireTsconfig } from './wiretypes.ts';
 
 const USAGE = `alpo — serve a library from its checkout until a release carries what you need
 
@@ -16,7 +18,8 @@ const USAGE = `alpo — serve a library from its checkout until a release carrie
                           npm takes vite or file, SwiftPM edit, Go work; join picks from the repository
                           --serve source: a vite link serves the checkout's src, not its dist
   alpo leave <lib>
-  alpo link <lib> [--for <reason>] [--needs <rev>]...
+  alpo link <lib> [--for <reason>] [--needs <rev>]... [--from <checkout>]
+                          --from serves another checkout (a worktree, say) until unlinked
   alpo unlink <lib>
   alpo bump <lib> [<version>] [--all] [--exact]
                           a range that admits the target, locked to it, is left alone; --exact pins it anyway
@@ -37,6 +40,7 @@ function parse() {
         serve: { type: 'string' },
         for: { type: 'string' },
         needs: { type: 'string', multiple: true },
+        from: { type: 'string' },
         all: { type: 'boolean' },
         deps: { type: 'boolean' },
         exact: { type: 'boolean' },
@@ -89,6 +93,9 @@ async function main() {
           console.log(`  wired ${tildify(file)}`);
         } else console.log(`  wire ${tildify(file)} by hand: ${WIRING}`);
       }
+      const ts = sharedTsconfig(root);
+      if (ts && wireTsconfig(ts)) console.log(`  ${tildify(ts)} extends ${EXTENDS}, so tsc sees links too`);
+      for (const f of ownPaths(root)) console.log(`  ${f} sets its own paths, which hide linked packages from tsc`);
       if (wired) console.log('  run `npm install` to fetch @msb235/alpo');
       return;
     }
@@ -96,8 +103,9 @@ async function main() {
       leaveLib(here(), need());
       return console.log(`left ${lib}`);
     case 'link': {
-      const entry = link(here(), need(), { for: flags.for, needs: flags.needs });
-      return console.log(`linked ${lib}, waiting on ${entry.needs.map((s) => s.slice(0, 9)).join(', ')}`);
+      const entry = link(here(), need(), { for: flags.for, needs: flags.needs, from: flags.from });
+      const where = entry.from ? ` from ${entry.from}` : '';
+      return console.log(`linked ${lib}${where}, waiting on ${entry.needs.map((s) => s.slice(0, 9)).join(', ')}`);
     }
     case 'unlink':
       return console.log(unlink(here(), need()) ? `unlinked ${lib}` : `${lib} was not linked`);

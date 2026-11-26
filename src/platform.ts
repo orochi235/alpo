@@ -23,6 +23,10 @@ export class Skip extends Error {}
 
 export const checkoutOf = (root: string, lib: LibConfig) => expandHome(lib.repo, root);
 
+/** The checkout a link serves: the one it was made `--from`, or the configured one. */
+export const linkedCheckout = (root: string, lib: LibConfig, link?: Link) =>
+  link?.from ? expandHome(link.from, root) : checkoutOf(root, lib);
+
 /** One dependency of the consumer's on a package the library supplies. */
 export interface Pin {
   /** The manifest declaring it, as a path from the root. */

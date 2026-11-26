@@ -56,6 +56,14 @@ import resolves through the package's `exports` as usual, then `dist/<path>.js` 
 library whose build only compiles TypeScript; types still come from `dist`. For one run,
 `ALPO_WEASEL=npm` turns a link off and `ALPO_WEASEL=<path>` serves another checkout (a worktree, say).
 
+tsc sees a vite link too. `join` puts `@msb235/alpo/tsconfig.json` first in the `extends` of
+`tsconfig.base.json` (or `tsconfig.json`), and `link`, `unlink`, `bump` and each dev-server start fill that
+file with `paths`: every export of each linked package to its declarations in the checkout, and each of their
+peer dependencies to the app's own copy, which tsc would otherwise take from the checkout's `node_modules` as a
+second, incompatible type. A tsconfig that sets `paths` of its own replaces these, and `join` says which do.
+`link --from <path>` serves another checkout (a worktree, say) until unlinked, for tsc and vite alike; an
+`ALPO_<LIB>` override lasts one run, which tsc cannot see.
+
 An esbuild build beside the dev server (a script bundling a player or a worker, say) takes the same links
 with `import { alpo } from '@msb235/alpo/esbuild'` in its `plugins`. Outside any bundler, `activeLinks(root)`
 from `@msb235/alpo` says which libraries are linked, from which checkout, and whether as source.
